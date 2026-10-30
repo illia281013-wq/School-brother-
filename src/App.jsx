@@ -204,7 +204,7 @@ export default function App() {
     <main className="main"><header className="top"><div><div className="eyebrow">ТВОЙ ПЕРСОНАЛЬНЫЙ РЕПЕТИТОР</div><h1>{titles[page]}</h1></div>
       <span className="pill">{configured?"Supabase настроен":"Демо · Supabase не подключён"}</span></header>
       {page==="dashboard"&&<Dashboard onChoose={chooseSubject} onQuickSolve={quickSolve} taskCount={taskCount} configured={configured}/>}
-      {page==="solver"&&<Solver key={selectedSubject+initialTask+selectedGrade} initialSubject={selectedSubject} initialTask={initialTask} onSaved={()=>setRefreshKey(x=>x+1)}/>}
+      {page==="solver"&&<Solver key={selectedSubject+initialTask+selectedGrade} initialSubject={selectedSubject} initialTask={initialTask} initialGrade={selectedGrade} onSaved={()=>setRefreshKey(x=>x+1)}/>}
       {page==="knowledge"&&<Knowledge/>}
       {page==="formulas"&&<Knowledge formulas/>}
       {page==="practice"&&<Practice/>}
