@@ -45,7 +45,7 @@ function SolutionView({ solution }) {
 }
 function Dashboard({ onChoose, onQuickSolve, taskCount, configured }) {
   const [subject,setSubject]=useState("english");
-  const [grade,setGrade]=useState("7");
+  const [grade,setGrade]=useState(String(initialGrade||7));
   const [task,setTask]=useState("");
   return <section className="view active">
     <div className="hero"><div className="eyebrow">AI SCHOOL ASSISTANT</div><h2>Понимай предмет. Решай увереннее.</h2>
@@ -67,7 +67,7 @@ function Dashboard({ onChoose, onQuickSolve, taskCount, configured }) {
     </div>
   </section>;
 }
-function Solver({ initialSubject, initialTask, onSaved }) {
+function Solver({ initialSubject, initialTask, initialGrade, onSaved }) {
   const [subject,setSubject]=useState(initialSubject||"english");
   const [grade,setGrade]=useState("7");
   const [mode,setMode]=useState("detailed");
