@@ -1,47 +1,58 @@
 # AI School Assistant
 
-AI-репетитор для 5–11 классов: английский язык, алгебра, геометрия, украинский язык, физика и химия.
+React + Vite приложение школьного AI-репетитора для 5–11 классов: английский язык, алгебра, геометрия, украинский язык, физика и химия.
 
-## Запуск через корневой index.html
+## Стек
 
-Корневой index.html — точка входа Vite, которая подключает src/main.js.
+- React 19 + React DOM
+- Vite 7 + @vitejs/plugin-react
+- Supabase Auth и PostgreSQL через `@supabase/supabase-js`
+- Supabase Edge Function `ai-tutor` для AI-решений
 
-Требуется Node.js 20.19+ или 22.12+.
+## Структура проекта
 
-1. npm install
-2. Скопируй .env.example в .env.local
-3. Заполни VITE_SUPABASE_URL и VITE_SUPABASE_PUBLISHABLE_KEY
-4. npm run dev
-5. Открой адрес, который покажет Vite (обычно http://localhost:5173).
+```
+.
+├── index.html                 # HTML entry point
+├── package.json
+├── vite.config.js
+├── src/
+│   ├── main.jsx               # React root
+│   ├── App.jsx                # App shell, pages and components
+│   ├── styles.css
+│   └── lib/
+│       └── supabase.js
+└── supabase/
+    ├── migrations/
+    └── functions/
+        └── ai-tutor/
+```
 
-Сборка: npm run build. Просмотр production-сборки: npm run preview.
+## Запуск
 
-## Supabase и AI
+Нужен Node.js 20.19+ или 22.12+.
 
-1. Активируй Supabase project.
-2. Примени SQL из supabase/migrations/202610300001_initial_school_assistant.sql после проверки.
-3. В Supabase Edge Function secrets установи OPENAI_API_KEY и при необходимости OPENAI_MODEL.
-4. Разверни функцию командой supabase functions deploy ai-tutor.
-5. Для локального приложения заполни .env.local по примеру .env.example.
+1. `npm install`
+2. Скопируй `.env.example` в `.env.local`.
+3. Заполни Supabase URL и publishable key.
+4. `npm run dev`
+5. Открой адрес Vite (обычно http://localhost:5173).
 
-Не помещай OpenAI API key, Supabase service-role key или secret key в браузер, GitHub или переменные VITE_*.
+Production build: `npm run build`; preview: `npm run preview`.
 
-## Подготовлено
+Корневой `index.html` остаётся точкой входа, но React-приложение монтируется через `src/main.jsx`.
 
-- Адаптивный интерфейс и навигация.
-- Шесть школьных предметов и выбор класса 5–11.
-- Режимы подробного, простого, краткого объяснения и обучения с нуля.
-- Отправка текста и изображения задания.
-- Supabase Auth: регистрация, вход и выход.
-- Сохранение решений и история пользователя.
-- Страницы базы знаний, формул, тренажёра и прогресса.
-- SQL-схема с RLS и pgvector.
-- Защищённая Edge Function с проверкой сессии и серверным AI API.
+## Supabase
 
-## Статус
+Примени SQL migration из `supabase/migrations`, проверь RLS и разверни Edge Function `ai-tutor`. Секрет `OPENAI_API_KEY` должен храниться только в Supabase Edge Function secrets. Не добавляй service-role/secret key в браузер, GitHub или `VITE_*` переменные.
 
-Интерфейс и интеграционный код добавлены. Облачные функции заработают после активации Supabase, применения миграции, установки OpenAI secret и развёртывания Edge Function. База знаний пока не наполнена проверенными материалами; пустые разделы не маскируются фиктивным содержимым.
+## Реализовано в интерфейсе
 
-## Почему используется Vite
+- Компонентная React-архитектура.
+- 6 предметов, классы 5–11.
+- AI-решатель с режимами объяснения и загрузкой изображений.
+- Supabase Auth, сохранение решений и история.
+- Библиотека знаний и формул с фильтрами.
+- Страницы тренажёра и прогресса.
 
-По требованию использовать корневой index.html как точку входа выбран Vite SPA. Это отличается от первоначального плана Next.js: Next.js использует собственный серверный маршрут и не запускается напрямую из единственного HTML-файла. Схема данных и Edge Function готовы к дальнейшему переносу на Next.js.
+База знаний требует наполнения проверенными материалами; тренажёр пока подготовлен как интерфейс следующего этапа.
