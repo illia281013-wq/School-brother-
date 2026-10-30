@@ -137,20 +137,37 @@ function Knowledge({ formulas=false }) {
     {loading?<div className="empty">Загрузка…</div>:error?<div className="notice">{error}</div>:items.length?items.map((x,i)=><div className="listrow" key={i}><b>{x.title}</b>{formulas?<><p><code>{x.expression}</code></p>{x.explanation}</>:<p>{x.content}</p>}</div>):<div className="empty">Для выбранного класса пока нет опубликованных материалов.</div>}
   </Panel></section>;
 }
+function makeExercise(subject) {
+  const a=3+Math.floor(Math.random()*8), b=2+Math.floor(Math.random()*9), n=2+Math.floor(Math.random()*8);
+  const bank={
+    algebra:{question:`Реши уравнение: ${a}x + ${b} = ${a*n+b}`,answer:String(n),hint:`Вычти ${b} из обеих частей, затем раздели результат на ${a}.`},
+    geometry:{question:`У прямоугольника стороны ${a} см и ${b} см. Найди периметр.`,answer:String(2*(a+b)),hint:`Формула: P = 2(a + b). Подставь значения сторон.`},
+    physics:{question:`Тело прошло ${a*10} м за ${b*2} с. Найди среднюю скорость в м/с.`,answer:String(Number((a*5/b).toFixed(2))),hint:`Используй формулу v = s / t. Раздели путь на время.`},
+    chemistry:{question:"Сколько атомов водорода содержит одна молекула воды H₂O?",answer:"2",hint:"Индекс 2 у H показывает два атома водорода. У кислорода индекс не указан — он один."},
+    english:{question:"Выбери правильную форму: She ___ to school every day. (go / goes)",answer:"goes",hint:"В Present Simple с he / she / it к глаголу обычно добавляется -s или -es."},
+    ukrainian:{question:"Визнач частину мови слова «швидко».",answer:"прислівник",hint:"Слово «швидко» відповідає на питання «як?» і називає ознаку дії."}
+  };
+  return bank[subject]||bank.algebra;
+}
 function Practice() {
-  const [subject,setSubject]=useState("algebra"),[grade,setGrade]=useState("7"),[topic,setTopic]=useState(""),[notice,setNotice]=useState("");
-  return <section className="view active"><Panel title="Тренажёр" description="Создание упражнений по школьным темам.">
-    <div className="controls"><SubjectSelect value={subject} onChange={setSubject}/><GradeSelect value={grade} onChange={setGrade}/></div>
-    <input className="field" style={{width:"100%"}} value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Тема, например: линейные уравнения"/>
-    <div className="row"><span className="hint">Генератор упражнений — следующий этап AI Engine</span><button className="btn" onClick={()=>setNotice(topic.trim()?"Генератор упражнений ещё не подключён.":"Сначала укажи тему тренировки.")}>Создать тренировку →</button></div>
-    {notice&&<div className="notice">{notice}</div>}
+  const [subject,setSubject]=useState("algebra"),[grade,setGrade]=useState("7");
+  const [exercise,setExercise]=useState(null),[answer,setAnswer]=useState(""),[checked,setChecked]=useState(false),[score,setScore]=useState(0),[attempts,setAttempts]=useState(0);
+  const normalize=v=>String(v).trim().toLocaleLowerCase().replace(",",".");
+  function next(){setExercise(makeExercise(subject));setAnswer("");setChecked(false);}
+  function check(){if(!exercise||!answer.trim()||checked)return;setChecked(true);setAttempts(x=>x+1);if(normalize(answer)===normalize(exercise.answer))setScore(x=>x+1);}
+  return <section className="view active"><Panel title="Тренажёр знаний" description="Решай короткие задания и сразу проверяй себя.">
+    <div className="controls"><SubjectSelect value={subject} onChange={v=>{setSubject(v);setExercise(null);setChecked(false);setAnswer("");}}/><GradeSelect value={grade} onChange={v=>{setGrade(v);setExercise(null);setChecked(false);}}/></div>
+    <div className="practice-stats"><span>Попыток: <b>{attempts}</b></span><span>Верно: <b>{score}</b></span></div>
+    {!exercise?<div className="empty">Нажми «Новое задание», чтобы начать тренировку.</div>:<div className="exercise-card"><span className="eyebrow">ПРАКТИКА · {grade} КЛАСС</span><h4>{exercise.question}</h4><input className="field answer-input" value={answer} onChange={e=>setAnswer(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")check();}} placeholder="Твой ответ" aria-label="Твой ответ" disabled={checked}/>{checked&&<div className={normalize(answer)===normalize(exercise.answer)?"feedback correct":"feedback incorrect"}>{normalize(answer)===normalize(exercise.answer)?"Верно! Отличная работа.":`Правильный ответ: ${exercise.answer}`}<p>{exercise.hint}</p></div>}</div>}
+    <div className="row"><button className="btn" onClick={next}>Новое задание →</button><button className="btn secondary" disabled={!exercise||!answer.trim()||checked} onClick={check}>Проверить ответ</button></div>
+    <p className="hint">Упражнения работают без базы данных. Результаты тренажёра пока не сохраняются после перезагрузки страницы.</p>
   </Panel></section>;
 }
 function AuthProfile({ user, onRefresh }) {
   const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
   async function auth(action){setMessage("");if(!supabase){setMessage("Сначала настрой Supabase.");return;}if(!email.trim()||password.length<8){setMessage("Укажи почту и пароль от 8 символов.");return;}setBusy(true);try{const result=action==="register"?await supabase.auth.signUp({email:email.trim(),password}):await supabase.auth.signInWithPassword({email:email.trim(),password});if(result.error)throw result.error;if(action==="register"&&!result.data.session)setMessage("Проверь почту для подтверждения регистрации.");await onRefresh();}catch(err){setMessage(err.message||"Ошибка авторизации.");}finally{setBusy(false);}}
   return <section className="view active"><Panel title="Профиль ученика">
-    {user?<><div className="listrow">Выполнен вход: {user.email}</div><button className="btn secondary" onClick={()=>supabase.auth.signOut()}>Выйти</button></>:<>
+    {user?<><div className="listrow">Выполнен вход: {user.email}</div><button className="btn secondary" onClick={logout}>Выйти</button></>:<>
       <p className="desc">Войди, чтобы сохранять историю и прогресс.</p>
       <div className="auth"><input className="field" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Электронная почта"/>
       <input className="field" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Пароль (от 8 символов)"/>
@@ -170,7 +187,7 @@ function UserData({ user, refreshKey, type }) {
 }
 export default function App() {
   const [page,setPage]=useState("dashboard"),[user,setUser]=useState(null),[refreshKey,setRefreshKey]=useState(0);
-  const [selectedSubject,setSelectedSubject]=useState("english"),[initialTask,setInitialTask]=useState("");
+  const [selectedSubject,setSelectedSubject]=useState("english"),[initialTask,setInitialTask]=useState(""),[selectedGrade,setSelectedGrade]=useState(7);
   const [taskCount,setTaskCount]=useState(null);
   const configured=useMemo(()=>isSupabaseConfigured,[ ]);
   const refresh=useCallback(async()=>{if(!supabase)return;const {data:{session}}=await supabase.auth.getSession();setUser(session?.user||null);setRefreshKey(x=>x+1);},[]);
@@ -178,7 +195,7 @@ export default function App() {
   useEffect(()=>{let active=true;async function load(){if(!supabase||!user){setTaskCount(null);return;}const {count}=await supabase.from("solutions").select("id",{count:"exact",head:true});if(active)setTaskCount(count??0);}load();return()=>{active=false;};},[user,refreshKey]);
   const titles={dashboard:"Добро пожаловать!",solver:"AI-решатель",knowledge:"Библиотека знаний",formulas:"Формулы и правила",practice:"Тренажёр",progress:"Мой прогресс",history:"История заданий",profile:"Профиль ученика"};
   function chooseSubject(id){setSelectedSubject(id);setInitialTask("");setPage("solver");}
-  function quickSolve({subject,task}){setSelectedSubject(subject);setInitialTask(task);setPage("solver");}
+  function quickSolve({subject,grade,task}){setSelectedSubject(subject);setSelectedGrade(Number(grade));setInitialTask(task);setPage("solver");}
   return <div className="shell">
     <aside className="side"><div className="brand">AI SCHOOL ASSISTANT<small>Умный помощник · 5–11 классы</small></div>
       <nav className="nav">{NAV.map(([id,icon,label])=><button key={id} onClick={()=>setPage(id)} className={page===id?"active":""}>{icon} &nbsp; {label}</button>)}</nav>
@@ -187,7 +204,7 @@ export default function App() {
     <main className="main"><header className="top"><div><div className="eyebrow">ТВОЙ ПЕРСОНАЛЬНЫЙ РЕПЕТИТОР</div><h1>{titles[page]}</h1></div>
       <span className="pill">{configured?"Supabase настроен":"Демо · Supabase не подключён"}</span></header>
       {page==="dashboard"&&<Dashboard onChoose={chooseSubject} onQuickSolve={quickSolve} taskCount={taskCount} configured={configured}/>}
-      {page==="solver"&&<Solver key={selectedSubject+initialTask} initialSubject={selectedSubject} initialTask={initialTask} onSaved={()=>setRefreshKey(x=>x+1)}/>}
+      {page==="solver"&&<Solver key={selectedSubject+initialTask+selectedGrade} initialSubject={selectedSubject} initialTask={initialTask} onSaved={()=>setRefreshKey(x=>x+1)}/>}
       {page==="knowledge"&&<Knowledge/>}
       {page==="formulas"&&<Knowledge formulas/>}
       {page==="practice"&&<Practice/>}
