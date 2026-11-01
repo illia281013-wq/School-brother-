@@ -16,6 +16,17 @@ let cachedModels = { at: 0, data: [] };
 const allowedModelId = /^[a-zA-Z0-9._:/-]{1,180}$/;
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const systemPrompt = "Ты — доброжелательный учебный помощник для школьников 5–11 классов. Объясняй доступно, спокойно и по шагам. Помогай понять ход решения, не выдумывай факты. Если условие неполное, попроси уточнение. Для химии и естественных наук соблюдай правила безопасности. Не проси личные данные.";
+export function normalizeModels(items = []) {
+  return items.filter(m => m && typeof m.id === "string" && allowedModelId.test(m.id) && /(qwen|deepseek|llama|gemma|mistral|phi|internvl|glm|hermes|nous|yi-|minicpm)/i.test(m.id))
+    .map(m => ({ id: m.id, name: m.name || m.id, vision: (m.architecture?.input_modalities || []).includes("image"), free: Number(m.pricing?.prompt ?? 1) === 0 && Number(m.pricing?.completion ?? 1) === 0 }));
+}
+export function parseImageDataUrl(value) {
+  if (typeof value !== "string" || value.length > 11_200_000) return null;
+  const match = value.match(/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/);
+  if (!match || !imageTypes.has(match[1])) return null;
+  return { mime: match[1], data: match[2] };
+}
+
 
 app.get("/api/status", (_req, res) => res.json({ server: true, aiConfigured: Boolean(process.env.OPENROUTER_API_KEY) }));
 
