@@ -45,7 +45,7 @@ function SolutionView({ solution }) {
 }
 function Dashboard({ onChoose, onQuickSolve, taskCount, configured }) {
   const [subject,setSubject]=useState("english");
-  const [grade,setGrade]=useState(String(initialGrade||7));
+  const [grade,setGrade]=useState("7");
   const [task,setTask]=useState("");
   return <section className="view active">
     <div className="hero"><div className="eyebrow">AI SCHOOL ASSISTANT</div><h2>Понимай предмет. Решай увереннее.</h2>
@@ -69,7 +69,7 @@ function Dashboard({ onChoose, onQuickSolve, taskCount, configured }) {
 }
 function Solver({ initialSubject, initialTask, initialGrade, onSaved }) {
   const [subject,setSubject]=useState(initialSubject||"english");
-  const [grade,setGrade]=useState("7");
+  const [grade,setGrade]=useState(String(initialGrade||7));
   const [mode,setMode]=useState("detailed");
   const [task,setTask]=useState(initialTask||"");
   const [imageFile,setImageFile]=useState(null);
@@ -164,6 +164,8 @@ function Practice() {
   </Panel></section>;
 }
 function AuthProfile({ user, onRefresh }) {
+  async function logout(){setBusy(true);try{const {error}=await supabase.auth.signOut();if(error)throw error;setMessage("Выход выполнен.");await onRefresh();}catch(err){setMessage(err.message||"Не удалось выйти.");}finally{setBusy(false);}}
+
   const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
   async function auth(action){setMessage("");if(!supabase){setMessage("Сначала настрой Supabase.");return;}if(!email.trim()||password.length<8){setMessage("Укажи почту и пароль от 8 символов.");return;}setBusy(true);try{const result=action==="register"?await supabase.auth.signUp({email:email.trim(),password}):await supabase.auth.signInWithPassword({email:email.trim(),password});if(result.error)throw result.error;if(action==="register"&&!result.data.session)setMessage("Проверь почту для подтверждения регистрации.");await onRefresh();}catch(err){setMessage(err.message||"Ошибка авторизации.");}finally{setBusy(false);}}
   return <section className="view active"><Panel title="Профиль ученика">
