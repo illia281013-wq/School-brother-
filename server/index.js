@@ -94,4 +94,4 @@ if (process.env.NODE_ENV === "production") {
   app.use(express.static(DIST));
   app.get("*", (_req, res) => res.sendFile(path.join(DIST, "index.html")));
 }
-app.listen(PORT, () => console.log(`AI School API listening on http://localhost:${PORT}`));
+if (process.env.NODE_ENV !== "test") app.listen(PORT, () => console.log(`AI School API listening on http://localhost:${PORT}`));
