@@ -5,6 +5,7 @@ const { normalizeModels, parseImageDataUrl, default: app } = await import("../se
 
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=";
 const webp = "UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEAAUAmJaQAA3AA/v89WAAAAA==";
+const jpeg = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEAAAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldZWVpjZGVmZ2hpanN0dXZ4eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6On6/9oADAMBAAIRAxEAPwD3+iiigD//2Q==";
 
 test("model catalog filters known open model families and labels capabilities", () => {
   const models = normalizeModels([
@@ -23,6 +24,8 @@ test("model catalog filters known open model families and labels capabilities", 
 test("image validator checks format, base64, size and file signature", () => {
   assert.equal(parseImageDataUrl("data:image/png;base64," + png)?.mime, "image/png");
   assert.equal(parseImageDataUrl("data:image/webp;base64," + webp)?.mime, "image/webp");
+  assert.equal(parseImageDataUrl("data:image/jpeg;base64," + jpeg)?.mime, "image/jpeg");
+  assert.equal(parseImageDataUrl("data:image/jpeg;base64,/9j/"), null);
   assert.equal(parseImageDataUrl("data:image/png;base64,aGVsbG8="), null);
   assert.equal(parseImageDataUrl("data:image/svg+xml;base64,PHN2Zz4="), null);
   assert.equal(parseImageDataUrl("https://example.com/picture.png"), null);
