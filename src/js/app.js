@@ -74,11 +74,14 @@ if (chatForm) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
   drawHistory();
-  const preferredChatModel = sessionStorage.getItem("ai-school-selected-model");
+  let preferredChatModel = null;
+  try {
+    preferredChatModel = sessionStorage.getItem("ai-school-selected-model");
+    sessionStorage.removeItem("ai-school-selected-model");
+  } catch { /* Session storage may be disabled in private browsing. */ }
   loadModels().then((loaded) => {
     models = loaded;
     fillSelect(modelSelect, models, preferredChatModel);
-    sessionStorage.removeItem("ai-school-selected-model");
     if (!models.length) status.textContent = "Каталог моделей пока недоступен.";
   });
   const params = new URLSearchParams(location.search);
@@ -153,7 +156,7 @@ if (modelsGrid) {
     const q = search.value.toLowerCase().trim(), kind = filter.value;
     const shown = allModels.filter(m => (kind !== "vision" || m.vision) && (kind !== "free" || m.free) && (m.name + " " + m.id).toLowerCase().includes(q)).slice(0, 100);
     modelsGrid.innerHTML = shown.map(m => `<article class="model-card"><div class="model-card-top"><span class="model-symbol">✦</span><span class="tag">${m.vision ? "VISION" : "TEXT"}</span></div><h3>${escapeHtml(m.name)}</h3><p class="model-id">${escapeHtml(m.id)}</p><div class="model-tags">${m.vision ? "<span>Изображения</span>" : ""}${m.free ? "<span>Free tier</span>" : "<span>Тариф зависит от провайдера</span>"}</div><button class="button ghost model-use" data-model="${escapeHtml(m.id)}" type="button">Открыть в чате →</button></article>`).join("") || '<p class="muted">Ничего не найдено.</p>';
-    modelsGrid.querySelectorAll(".model-use").forEach(btn => btn.addEventListener("click", () => { sessionStorage.setItem("ai-school-selected-model", btn.dataset.model); location.href = "./chat.html"; }));
+    modelsGrid.querySelectorAll(".model-use").forEach(btn => btn.addEventListener("click", () => { try { sessionStorage.setItem("ai-school-selected-model", btn.dataset.model); } catch { /* Continue to chat if session storage is disabled. */ } location.href = "./chat.html"; }));
   }
   Promise.all([loadModels(), api("/status").catch(() => null)]).then(([models]) => {
     allModels = models;
@@ -177,4 +180,4 @@ async function checkStatus() {
 }
 $("#check-server")?.addEventListener("click", checkStatus);
 if (serverStatus) checkStatus();
-$("#delete-history")?.addEventListener("click", () => { localStorage.removeItem(HISTORY_KEY); $("#settings-status").textContent = "Локальная история удалена."; });
+$("#delete-history")?.addEventListener("click", () => { try { localStorage.removeItem(HISTORY_KEY); $("#settings-status").textContent = "Локальная история удалена."; } catch { $("#settings-status").textContent = "Браузер запретил доступ к локальному хранилищу."; } });
