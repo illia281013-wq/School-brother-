@@ -41,29 +41,18 @@ export function parseImageDataUrl(value) {
 
 app.get("/api/status", (_req, res) => res.json({ server: true, aiConfigured: Boolean(process.env.OPENROUTER_API_KEY) }));
 
+async function getModels() {
+  if (Date.now() - cachedModels.at < 5 * 60 * 1000 && cachedModels.data.length) return cachedModels.data;
+  const response = await fetch("https://openrouter.ai/api/v1/models", { headers: { "User-Agent": "AI-School-Assistant/1.0" } });
+  if (!response.ok) throw new Error("Не удалось получить каталог моделей.");
+  const payload = await response.json();
+  const models = normalizeModels(payload.data || []);
+  cachedModels = { at: Date.now(), data: models };
+  return models;
+}
 app.get("/api/models", async (_req, res) => {
-  try {
-    if (Date.now() - cachedModels.at < 5 * 60 * 1000 && cachedModels.data.length) return res.json({ models: cachedModels.data });
-    const response = await fetch("https://openrouter.ai/api/v1/models", { headers: { "User-Agent": "AI-School-Assistant/1.0" } });
-    if (!response.ok) throw new Error("Не удалось получить каталог моделей.");
-    const payload = await response.json();
-    const models = (payload.data || []).map((m) => {
-      const input = m.architecture?.input_modalities || [];
-      const promptPrice = Number(m.pricing?.prompt || 0);
-      const completionPrice = Number(m.pricing?.completion || 0);
-      return {
-        id: m.id,
-        name: m.name || m.id,
-        vision: input.includes("image"),
-        free: promptPrice === 0 && completionPrice === 0,
-        pricing: { prompt: promptPrice, completion: completionPrice }
-      };
-    }).filter(m => m.id && allowedModelId.test(m.id) && /(qwen|deepseek|llama|gemma|mistral|phi|internvl|glm|hermes|nous|yi-|minicpm)/i.test(m.id));
-    cachedModels = { at: Date.now(), data: models };
-    res.json({ models });
-  } catch (error) {
-    res.status(502).json({ error: error.message || "Каталог моделей временно недоступен." });
-  }
+  try { res.json({ models: await getModels() }); }
+  catch (error) { res.status(502).json({ error: error.message || "Каталог моделей недоступен." }); }
 });
 
 app.post("/api/chat", async (req, res) => {
@@ -87,6 +76,9 @@ app.post("/api/chat", async (req, res) => {
     { role: "user", content: userContent }
   ];
   try {
+    const selectedModel = (await getModels()).find(item => item.id === model);
+    if (!selectedModel) return res.status(400).json({ error: "Выбери модель из доступного каталога." });
+    if (image && !selectedModel.vision) return res.status(400).json({ error: "Эта модель не поддерживает анализ изображений." });
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + process.env.OPENROUTER_API_KEY, "Content-Type": "application/json", "HTTP-Referer": process.env.APP_URL || "http://localhost:5173", "X-Title": "AI School Assistant" },
