@@ -33,8 +33,15 @@ export function normalizeModels(items = []) {
 }
 export function parseImageDataUrl(value) {
   if (typeof value !== "string" || value.length > 11_200_000) return null;
-  const match = value.match(new RegExp("^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$"));
+  const match = value.match(/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/);
   if (!match || !imageTypes.has(match[1])) return null;
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length || bytes.length > 8 * 1024 * 1024 || bytes.toString("base64") !== match[2]) return null;
+  const validSignature =
+    (match[1] === "image/png" && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
+    (match[1] === "image/jpeg" && bytes.length >= 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) ||
+    (match[1] === "image/webp" && bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP");
+  if (!validSignature) return null;
   return { mime: match[1], data: match[2] };
 }
 
@@ -43,7 +50,7 @@ app.get("/api/status", (_req, res) => res.json({ server: true, aiConfigured: Boo
 
 async function getModels() {
   if (Date.now() - cachedModels.at < 5 * 60 * 1000 && cachedModels.data.length) return cachedModels.data;
-  const response = await fetch("https://openrouter.ai/api/v1/models", { headers: { "User-Agent": "AI-School-Assistant/1.0" } });
+  const response = await fetch("https://openrouter.ai/api/v1/models", { headers: { "User-Agent": "AI-School-Assistant/1.0" }, signal: AbortSignal.timeout(10000) });
   if (!response.ok) throw new Error("Не удалось получить каталог моделей.");
   const payload = await response.json();
   const models = normalizeModels(payload.data || []);
@@ -82,6 +89,7 @@ app.post("/api/chat", async (req, res) => {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + process.env.OPENROUTER_API_KEY, "Content-Type": "application/json", "HTTP-Referer": process.env.APP_URL || "http://localhost:5173", "X-Title": "AI School Assistant" },
+      signal: AbortSignal.timeout(60000),
       body: JSON.stringify({ model, messages: messagesForModel, temperature: 0.4, max_tokens: 1800 })
     });
     const data = await response.json().catch(() => ({}));
@@ -98,3 +106,4 @@ if (process.env.NODE_ENV === "production") {
   app.get("*", (_req, res) => res.sendFile(path.join(DIST, "index.html")));
 }
 if (process.env.NODE_ENV !== "test") app.listen(PORT, () => console.log(`AI School API listening on http://localhost:${PORT}`));
+export default app;
