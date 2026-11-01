@@ -50,6 +50,14 @@ test("status endpoint reports server state without leaking credentials", async (
   assert.equal("OPENROUTER_API_KEY" in data, false);
 });
 
+test("chat endpoint rejects malformed images before checking provider configuration", async () => {
+  const response = await fetch(base + "/api/chat", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "qwen/qwen-vl", image: "data:image/png;base64,aGVsbG8=", messages: [] })
+  });
+  assert.equal(response.status, 400);
+});
+
 test("chat endpoint fails safely when server-side provider key is absent", async () => {
   if (process.env.OPENROUTER_API_KEY) return;
   const response = await fetch(base + "/api/chat", {
