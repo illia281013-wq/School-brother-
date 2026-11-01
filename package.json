@@ -1,20 +1,8 @@
 {
   "name": "ai-school-assistant",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.2.0",
   "type": "module",
-  "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "2.102.0",
-    "react": "19.1.1",
-    "react-dom": "19.1.1"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "5.0.4",
-    "vite": "7.1.7"
-  }
+  "scripts": {"dev": "vite --host 0.0.0.0", "build": "vite build", "preview": "vite preview --host 0.0.0.0"},
+  "devDependencies": {"vite": "7.1.7"}
 }
