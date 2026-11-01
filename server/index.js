@@ -10,7 +10,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
 app.disable("x-powered-by");
-app.use(express.json({ limit: "12mb" }));
 const chatRate = new Map();
 app.use("/api/chat", (req, res, next) => {
   const now = Date.now();
@@ -21,6 +20,8 @@ app.use("/api/chat", (req, res, next) => {
   else current.count += 1;
   next();
 });
+app.use(express.json({ limit: "12mb" }));
+
 
 
 let cachedModels = { at: 0, data: [] };
