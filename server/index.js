@@ -22,7 +22,7 @@ export function normalizeModels(items = []) {
 }
 export function parseImageDataUrl(value) {
   if (typeof value !== "string" || value.length > 11_200_000) return null;
-  const match = value.match(/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/);
+  const match = value.match(new RegExp("^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$"));
   if (!match || !imageTypes.has(match[1])) return null;
   return { mime: match[1], data: match[2] };
 }
