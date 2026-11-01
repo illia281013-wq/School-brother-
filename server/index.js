@@ -39,7 +39,7 @@ export function parseImageDataUrl(value) {
   if (!bytes.length || bytes.length > 8 * 1024 * 1024 || bytes.toString("base64") !== match[2]) return null;
   const validSignature =
     (match[1] === "image/png" && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
-    (match[1] === "image/jpeg" && bytes.length >= 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) ||
+    (match[1] === "image/jpeg" && bytes.length >= 4 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 && bytes.at(-2) === 255 && bytes.at(-1) === 217) ||
     (match[1] === "image/webp" && bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP");
   if (!validSignature) return null;
   return { mime: match[1], data: match[2] };
