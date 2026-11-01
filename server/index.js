@@ -63,8 +63,8 @@ app.post("/api/chat", async (req, res) => {
   let userContent;
   if (image !== undefined && image !== null) {
     if (typeof image !== "string" || image.length > 11_200_000) return res.status(413).json({ error: "Изображение слишком большое. Максимум 8 МБ." });
-    const match = image.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-    if (!match || !imageTypes.has(match[1])) return res.status(400).json({ error: "Поддерживаются только JPG, PNG и WEBP." });
+    const parsedImage = parseImageDataUrl(image);
+    if (!parsedImage) return res.status(400).json({ error: "Поддерживаются только JPG, PNG и WEBP до 8 МБ." });
     userContent = [{ type: "text", text: String(prompt || "Проанализируй изображение и объясни его содержание.").slice(0, 3000) }, { type: "image_url", image_url: { url: image } }];
   } else {
     if (!safeMessages.length) return res.status(400).json({ error: "Напиши вопрос перед отправкой." });
