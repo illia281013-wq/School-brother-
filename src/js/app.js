@@ -27,8 +27,16 @@ function renderText(text) {
   return escapeHtml(text).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
 }
 const HISTORY_KEY = "ai-school-chat-history-v1";
-function getHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; } }
-function saveHistory(history) { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-40))); }
+function getHistory() {
+  try {
+    const value = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    return Array.isArray(value) ? value.filter(m => m && ["user", "assistant"].includes(m.role) && typeof m.content === "string").slice(-40) : [];
+  } catch { return []; }
+}
+function saveHistory(history) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-40))); }
+  catch { /* Storage can be disabled or full; the current chat still works in memory. */ }
+}
 
 async function loadModels() {
   try {
@@ -40,7 +48,7 @@ async function loadModels() {
   }
 }
 function modelLabel(model) {
-  const price = Number(model.pricing?.prompt || 0) === 0 && Number(model.pricing?.completion || 0) === 0 ? " · free" : "";
+  const price = model.free ? " · free tier" : "";
   return model.name + (model.vision ? " · vision" : "") + price;
 }
 function fillSelect(select, models, preferred) {
@@ -58,22 +66,32 @@ if (chatForm) {
   const modelSelect = $("#chat-model");
   let history = getHistory();
   let models = [];
+  let sending = false;
+  const sendButton = chatForm.querySelector("button[type=submit]");
   function drawHistory() {
     messagesEl.innerHTML = history.length ? history.map((m) => `<div class="message ${m.role === "assistant" ? "assistant" : "user"}"><b>${m.role === "assistant" ? "AI School" : "Ты"}</b><p>${renderText(m.content)}</p></div>`).join("") : '<div class="message assistant"><b>AI School</b><p>Привет! Напиши вопрос по школьной теме.</p></div>';
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
   drawHistory();
-  loadModels().then((loaded) => { models = loaded; fillSelect(modelSelect, models); if (!models.length) status.textContent = "Каталог моделей пока недоступен."; });
+  const preferredChatModel = sessionStorage.getItem("ai-school-selected-model");
+  loadModels().then((loaded) => {
+    models = loaded;
+    fillSelect(modelSelect, models, preferredChatModel);
+    sessionStorage.removeItem("ai-school-selected-model");
+    if (!models.length) status.textContent = "Каталог моделей пока недоступен.";
+  });
   const params = new URLSearchParams(location.search);
   const subject = params.get("subject");
   if (subject) input.value = `Помоги мне с предметом «${subject}». Объясни тему простым языком.`;
   $("#clear-chat")?.addEventListener("click", () => { history = []; saveHistory(history); drawHistory(); status.textContent = "История очищена."; });
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (sending) return;
     const text = input.value.trim();
     if (!text) return;
     const model = modelSelect.value;
     if (!model) { status.textContent = "Сначала дождись загрузки моделей."; return; }
+    sending = true; sendButton.disabled = true; input.disabled = true;
     history.push({ role: "user", content: text });
     drawHistory(); saveHistory(history); input.value = ""; status.textContent = "AI готовит объяснение…";
     const pending = document.createElement("div");
@@ -86,6 +104,8 @@ if (chatForm) {
       pending.remove();
       history.pop(); saveHistory(history); drawHistory();
       status.textContent = error.message;
+    } finally {
+      sending = false; sendButton.disabled = false; input.disabled = false; input.focus();
     }
   });
 }
@@ -98,12 +118,18 @@ if (fileInput) {
   loadModels().then((models) => { fillSelect(modelSelect, models.filter(m => m.vision)); if (!models.some(m => m.vision)) status.textContent = "Не удалось загрузить список vision-моделей."; });
   fileInput.addEventListener("change", () => {
     selectedFile = fileInput.files?.[0] || null;
+    dataUrl = ""; button.disabled = true; preview.hidden = true;
     if (!selectedFile) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(selectedFile.type) || selectedFile.size > 8 * 1024 * 1024) {
       status.textContent = "Выбери JPG, PNG или WEBP размером до 8 МБ."; fileInput.value = ""; selectedFile = null; button.disabled = true; preview.hidden = true; return;
     }
+    const currentFile = selectedFile;
     const reader = new FileReader();
-    reader.onload = () => { dataUrl = String(reader.result); preview.src = dataUrl; preview.hidden = false; button.disabled = false; status.textContent = `Выбрано: ${selectedFile.name}`; };
+    reader.onload = () => {
+      if (selectedFile !== currentFile) return;
+      dataUrl = String(reader.result); preview.src = dataUrl; preview.hidden = false; button.disabled = false; status.textContent = `Выбрано: ${selectedFile.name}`;
+    };
+    reader.onerror = () => { if (selectedFile === currentFile) status.textContent = "Не удалось прочитать файл. Попробуй другое изображение."; };
     reader.readAsDataURL(selectedFile);
   });
   button.addEventListener("click", async () => {
@@ -145,5 +171,3 @@ async function checkStatus() {
 $("#check-server")?.addEventListener("click", checkStatus);
 if (serverStatus) checkStatus();
 $("#delete-history")?.addEventListener("click", () => { localStorage.removeItem(HISTORY_KEY); $("#settings-status").textContent = "Локальная история удалена."; });
-const preferredModel = sessionStorage.getItem("ai-school-selected-model");
-if (preferredModel && $("#chat-model")) { loadModels().then(models => fillSelect($("#chat-model"), models, preferredModel)); sessionStorage.removeItem("ai-school-selected-model"); }
