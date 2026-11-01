@@ -35,7 +35,7 @@ export function normalizeModels(items = []) {
 }
 export function parseImageDataUrl(value) {
   if (typeof value !== "string" || value.length > 11_200_000) return null;
-  const match = value.match(/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/);
+  const match = value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/);
   if (!match || !imageTypes.has(match[1])) return null;
   const bytes = Buffer.from(match[2], "base64");
   if (!bytes.length || bytes.length > 8 * 1024 * 1024 || bytes.toString("base64") !== match[2]) return null;
