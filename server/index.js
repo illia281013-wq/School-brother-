@@ -11,6 +11,17 @@ const ROOT = path.resolve(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
 app.disable("x-powered-by");
 app.use(express.json({ limit: "12mb" }));
+const chatRate = new Map();
+app.use("/api/chat", (req, res, next) => {
+  const now = Date.now();
+  const key = req.ip || "unknown";
+  const current = chatRate.get(key);
+  if (!current || now - current.start > 15 * 60 * 1000) chatRate.set(key, { start: now, count: 1 });
+  else if (current.count >= 20) return res.status(429).json({ error: "Слишком много запросов. Попробуй позже." });
+  else current.count += 1;
+  next();
+});
+
 
 let cachedModels = { at: 0, data: [] };
 const allowedModelId = /^[a-zA-Z0-9._:/-]{1,180}$/;
