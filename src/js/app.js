@@ -154,7 +154,13 @@ if (modelsGrid) {
     modelsGrid.innerHTML = shown.map(m => `<article class="model-card"><div class="model-card-top"><span class="model-symbol">✦</span><span class="tag">${m.vision ? "VISION" : "TEXT"}</span></div><h3>${escapeHtml(m.name)}</h3><p class="model-id">${escapeHtml(m.id)}</p><div class="model-tags">${m.vision ? "<span>Изображения</span>" : ""}${m.free ? "<span>Free tier</span>" : "<span>Тариф зависит от провайдера</span>"}</div><button class="button ghost model-use" data-model="${escapeHtml(m.id)}" type="button">Открыть в чате →</button></article>`).join("") || '<p class="muted">Ничего не найдено.</p>';
     modelsGrid.querySelectorAll(".model-use").forEach(btn => btn.addEventListener("click", () => { sessionStorage.setItem("ai-school-selected-model", btn.dataset.model); location.href = "./chat.html"; }));
   }
-  Promise.all([loadModels(), api("/status").catch(() => null)]).then(([models]) => { allModels = models; status.textContent = `Загружено моделей: ${models.length}. Показаны в том числе модели с открытыми весами; лицензии проверяй на странице конкретной модели.`; drawModels(); });
+  Promise.all([loadModels(), api("/status").catch(() => null)]).then(([models]) => {
+    allModels = models;
+    status.textContent = models.length
+      ? `Загружено моделей: ${models.length}. Перед использованием проверь лицензию и тариф конкретной модели.`
+      : "Каталог пока недоступен. Проверь соединение с сервером и открой Настройки.";
+    drawModels();
+  });
   search.addEventListener("input", drawModels); filter.addEventListener("change", drawModels);
 }
 
