@@ -25,7 +25,7 @@ app.use(express.json({ limit: "12mb" }));
 
 
 let cachedModels = { at: 0, data: [] };
-const allowedModelId = /^[a-zA-Z0-9._:/-]{1,180}$/;
+const allowedModelId = /^[a-zA-Z0-9._:\/-]{1,180}$/;
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const systemPrompt = "Ты — доброжелательный учебный помощник для школьников 5–11 классов. Объясняй доступно, спокойно и по шагам. Помогай понять ход решения, не выдумывай факты. Если условие неполное, попроси уточнение. Для химии и естественных наук соблюдай правила безопасности. Не проси личные данные.";
 export function normalizeGrade(value) { const grade = String(value); return ["5", "6", "7", "8", "9", "10", "11"].includes(grade) ? grade : "7"; }
