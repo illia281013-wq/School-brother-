@@ -68,6 +68,7 @@ if (chatForm) {
   let models = [];
   let sending = false;
   const sendButton = chatForm.querySelector("button[type=submit]");
+  const clearButton = $("#clear-chat");
   function drawHistory() {
     messagesEl.innerHTML = history.length ? history.map((m) => `<div class="message ${m.role === "assistant" ? "assistant" : "user"}"><b>${m.role === "assistant" ? "AI School" : "Ты"}</b><p>${renderText(m.content)}</p></div>`).join("") : '<div class="message assistant"><b>AI School</b><p>Привет! Напиши вопрос по школьной теме.</p></div>';
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -91,7 +92,7 @@ if (chatForm) {
     if (!text) return;
     const model = modelSelect.value;
     if (!model) { status.textContent = "Сначала дождись загрузки моделей."; return; }
-    sending = true; sendButton.disabled = true; input.disabled = true;
+    sending = true; sendButton.disabled = true; input.disabled = true; if (clearButton) clearButton.disabled = true;
     history.push({ role: "user", content: text });
     drawHistory(); saveHistory(history); input.value = ""; status.textContent = "AI готовит объяснение…";
     const pending = document.createElement("div");
@@ -105,7 +106,7 @@ if (chatForm) {
       history.pop(); saveHistory(history); drawHistory();
       status.textContent = error.message;
     } finally {
-      sending = false; sendButton.disabled = false; input.disabled = false; input.focus();
+      sending = false; sendButton.disabled = false; input.disabled = false; if (clearButton) clearButton.disabled = false; input.focus();
     }
   });
 }
