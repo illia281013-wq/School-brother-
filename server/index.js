@@ -49,7 +49,7 @@ export function parseImageDataUrl(value) {
 app.get("/api/status", (_req, res) => res.json({ server: true, aiConfigured: Boolean(process.env.OPENROUTER_API_KEY) }));
 
 async function getModels() {
-  if (Date.now() - cachedModels.at < 5 * 60 * 1000 && cachedModels.data.length) return cachedModels.data;
+  if (cachedModels.at && Date.now() - cachedModels.at < 5 * 60 * 1000) return cachedModels.data;
   const response = await fetch("https://openrouter.ai/api/v1/models", { headers: { "User-Agent": "AI-School-Assistant/1.0" }, signal: AbortSignal.timeout(10000) });
   if (!response.ok) throw new Error("Не удалось получить каталог моделей.");
   const payload = await response.json();
@@ -63,7 +63,6 @@ app.get("/api/models", async (_req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
-  if (!process.env.OPENROUTER_API_KEY) return res.status(503).json({ error: "AI не подключён: на сервере не задан OPENROUTER_API_KEY. Открой Настройки проекта." });
   const { model, messages = [], grade = "7", prompt, image } = req.body || {};
   if (typeof model !== "string" || !allowedModelId.test(model)) return res.status(400).json({ error: "Выбрана некорректная модель." });
   const safeMessages = Array.isArray(messages) ? messages.slice(-12).filter(m => ["user", "assistant"].includes(m.role) && typeof m.content === "string").map(m => ({ role: m.role, content: m.content.slice(0, 5000) })) : [];
@@ -77,6 +76,8 @@ app.post("/api/chat", async (req, res) => {
     if (!safeMessages.length) return res.status(400).json({ error: "Напиши вопрос перед отправкой." });
     userContent = safeMessages.pop().content;
   }
+  if (!process.env.OPENROUTER_API_KEY) return res.status(503).json({ error: "AI не подключён: на сервере не задан OPENROUTER_API_KEY. Открой Настройки проекта." });
+
   const messagesForModel = [
     { role: "system", content: systemPrompt + " Уровень ученика: " + String(grade).slice(0, 2) + " класс." },
     ...safeMessages,
