@@ -10,6 +10,26 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
 app.disable("x-powered-by");
+const allowedOrigins = new Set([
+  process.env.APP_URL,
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173"
+].filter(Boolean));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  } else if (origin) {
+    return res.status(403).json({ error: "Этот адрес сайта не разрешён сервером. Добавь адрес фронтенда в APP_URL." });
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 const chatRate = new Map();
 app.use("/api/chat", (req, res, next) => {
   const now = Date.now();
