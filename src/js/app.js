@@ -187,8 +187,8 @@ async function checkStatus() {
   try {
     const data = await api("/status");
     serverStatus.textContent = data.server ? "Сервер работает" : "Сервер не отвечает";
-    $("#provider-status").textContent = data.aiConfigured ? "AI-провайдер подключён." : "API-ключ не настроен. Добавь OPENROUTER_API_KEY в серверный .env.";
-  } catch { serverStatus.textContent = "Сервер недоступен. Запусти npm run dev."; $("#provider-status").textContent = "AI-функции не подключены: проверь сервер и ключ провайдера."; }
+    $("#provider-status").textContent = (data.aiConfigured ? "AI-модели подключены. " : "Нет ключа OpenRouter. ") + (data.ttsConfigured ? "Озвучка Inworld подключена." : "Озвучка Inworld не настроена: добавь INWORLD_API_KEY в серверный .env.");
+  } catch { serverStatus.textContent = "Сервер недоступен. Запусти npm run dev."; $("#provider-status").textContent = "AI и озвучка недоступны, пока сервер не запущен."; }
 }
 $("#check-server")?.addEventListener("click", checkStatus);
 if (serverStatus) checkStatus();
