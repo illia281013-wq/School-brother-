@@ -13,7 +13,7 @@ if (header) header.innerHTML = `<header class="topbar"><a class="brand" href="${
 const footer = document.querySelector("#site-footer");
 if (footer) footer.innerHTML = `<footer class="footer"><a class="brand" href="${navItems[0][1]}"><span class="brand-mark">A<span>+</span></span><span><strong>AI SCHOOL</strong><small>ASSISTANT</small></span></a><p>Учись с пониманием. Шаг за шагом.</p><a href="${pagePrefix}settings.html">Настройки</a></footer>`;
 
-const API = "/api";
+const API = (import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 const $ = (selector) => document.querySelector(selector);
 async function api(path, options = {}) {
   let response;
