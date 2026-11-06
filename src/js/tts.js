@@ -1,4 +1,5 @@
 // Adds Inworld speech controls to assistant answers in the chat.
+const TTS_API_BASE = (import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 (() => {
   const messages = document.querySelector("#chat-messages");
   if (!messages) return;
@@ -51,7 +52,7 @@
     button.disabled = true;
     button.textContent = "Создаю аудио…";
     try {
-      const response = await fetch("/api/tts", {
+      const response = await fetch(TTS_API_BASE + "/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: text.slice(0, 2000) })
