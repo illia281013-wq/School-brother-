@@ -22,8 +22,6 @@ app.use("/api/chat", (req, res, next) => {
 });
 app.use(express.json({ limit: "12mb" }));
 
-
-
 let cachedModels = { at: 0, data: [] };
 const allowedModelId = /^[a-zA-Z0-9._:\/-]{1,180}$/;
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -47,8 +45,44 @@ export function parseImageDataUrl(value) {
   return { mime: match[1], data: match[2] };
 }
 
+app.get("/api/status", (_req, res) => res.json({
+  server: true,
+  aiConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+  ttsConfigured: Boolean(process.env.INWORLD_API_KEY)
+}));
 
-app.get("/api/status", (_req, res) => res.json({ server: true, aiConfigured: Boolean(process.env.OPENROUTER_API_KEY) }));
+// Inworld TTS: API key stays on the server, never in browser JavaScript.
+app.post("/api/tts", async (req, res) => {
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  if (!text) return res.status(400).json({ error: "Нет текста для озвучивания." });
+  if (text.length > 2000) return res.status(400).json({ error: "Для озвучивания выбери ответ короче 2000 символов." });
+  const apiKey = process.env.INWORLD_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: "Inworld не подключён. Добавь INWORLD_API_KEY в серверный .env." });
+  try {
+    const response = await fetch("https://api.inworld.ai/tts/v1/voice", {
+      method: "POST",
+      headers: { "Authorization": "Basic " + apiKey, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(45000),
+      body: JSON.stringify({
+        text,
+        voiceId: process.env.INWORLD_TTS_VOICE_ID || "Ashley",
+        modelId: "inworld-tts-2",
+        audioConfig: { audioEncoding: "MP3" }
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload.error?.message || payload.message || "Inworld не смог создать аудио.";
+      return res.status(response.status >= 500 ? 502 : response.status).json({ error: message });
+    }
+    if (typeof payload.audioContent !== "string" || !payload.audioContent) {
+      return res.status(502).json({ error: "Inworld вернул пустой аудиофайл." });
+    }
+    res.json({ audioContent: payload.audioContent, model: payload.usage?.modelId || "inworld-tts-2" });
+  } catch (error) {
+    res.status(502).json({ error: "Не удалось связаться с Inworld: " + (error.name === "TimeoutError" ? "превышено время ожидания." : "проверь подключение сервера.") });
+  }
+});
 
 async function getModels() {
   if (cachedModels.at && Date.now() - cachedModels.at < 5 * 60 * 1000) return cachedModels.data;
