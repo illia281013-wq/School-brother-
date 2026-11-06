@@ -9,7 +9,7 @@ const navItems = [
   ["Настройки", pagePrefix + "settings.html"]
 ];
 const header = document.querySelector("#site-header");
-if (header) header.innerHTML = `<header class="topbar"><a class="brand" href="${navItems[0][1]}"><span class="brand-mark">A<span>+</span></span><span><strong>AI SCHOOL</strong><small>ASSISTANT · 5–11 КЛАССЫ</small></span></a><nav class="main-nav">${navItems.slice(1,6).map(([label,url]) => `<a href="${url}">${label}</a>`).join("")}</nav><a class="top-cta" href="${pagePrefix}chat.html">Задать вопрос ↗</a></header>`;
+if (header) header.innerHTML = `<header class="topbar"><a class="brand" href="${navItems[0][1]}"><span class="brand-mark">A<span>+</span></span><span><strong>AI SCHOOL</strong><small>ASSISTANT · 5–11 КЛАССЫ</small></span></a><nav class="main-nav">${navItems.slice(1).map(([label,url]) => `<a href="${url}">${label}</a>`).join("")}</nav><a class="top-cta" href="${pagePrefix}chat.html">Задать вопрос ↗</a></header>`;
 const footer = document.querySelector("#site-footer");
 if (footer) footer.innerHTML = `<footer class="footer"><a class="brand" href="${navItems[0][1]}"><span class="brand-mark">A<span>+</span></span><span><strong>AI SCHOOL</strong><small>ASSISTANT</small></span></a><p>Учись с пониманием. Шаг за шагом.</p><a href="${pagePrefix}settings.html">Настройки</a></footer>`;
 
@@ -90,10 +90,12 @@ if (chatForm) {
     preferredChatModel = sessionStorage.getItem("ai-school-selected-model");
     sessionStorage.removeItem("ai-school-selected-model");
   } catch { /* Session storage may be disabled in private browsing. */ }
+  const queryModel = new URLSearchParams(location.search).get("model");
   loadModels().then((loaded) => {
     models = loaded;
-    fillSelect(modelSelect, models, preferredChatModel);
+    fillSelect(modelSelect, models, queryModel || preferredChatModel);
     if (!models.length) status.textContent = "Не удалось загрузить модели. Проверь сервер в разделе «Настройки».";
+    else if (!modelSelect.value) status.textContent = "Выбери модель и напиши вопрос.";
   });
   const params = new URLSearchParams(location.search);
   const subject = params.get("subject");
@@ -118,7 +120,8 @@ if (chatForm) {
     } catch (error) {
       pending.remove();
       history.pop(); saveHistory(history); drawHistory();
-      status.textContent = error.message;
+      input.value = text;
+      status.textContent = error.message + " Вопрос сохранён в поле — можно повторить отправку.";
     } finally {
       sending = false; sendButton.disabled = false; input.disabled = false; if (clearButton) clearButton.disabled = false; input.focus();
     }
@@ -138,6 +141,7 @@ if (fileInput) {
     if (!["image/jpeg", "image/png", "image/webp"].includes(selectedFile.type) || selectedFile.size > 8 * 1024 * 1024) {
       status.textContent = "Поддерживаются JPG, PNG или WEBP до 8 МБ."; fileInput.value = ""; selectedFile = null; button.disabled = true; preview.hidden = true; return;
     }
+    resultBox.innerHTML = '<p class="muted">Результат анализа появится здесь.</p>';
     const currentFile = selectedFile;
     const reader = new FileReader();
     reader.onload = () => {
@@ -168,7 +172,7 @@ if (modelsGrid) {
     const q = search.value.toLowerCase().trim(), kind = filter.value;
     const shown = allModels.filter(m => (kind !== "vision" || m.vision) && (kind !== "free" || m.free) && (m.name + " " + m.id).toLowerCase().includes(q)).slice(0, 100);
     modelsGrid.innerHTML = shown.map(m => `<article class="model-card"><div class="model-card-top"><span class="model-symbol">✦</span><span class="tag">${m.vision ? "Фото + текст" : "Только текст"}</span></div><h3>${escapeHtml(m.name)}</h3><p class="model-id">${escapeHtml(m.id)}</p><div class="model-tags">${m.vision ? "<span>Поддержка фото</span>" : ""}${m.free ? "<span>Есть бесплатный тариф</span>" : "<span>Стоимость зависит от провайдера</span>"}</div><button class="button ghost model-use" data-model="${escapeHtml(m.id)}" type="button">Выбрать для чата →</button></article>`).join("") || '<p class="muted">По этому запросу моделей нет.</p>';
-    modelsGrid.querySelectorAll(".model-use").forEach(btn => btn.addEventListener("click", () => { try { sessionStorage.setItem("ai-school-selected-model", btn.dataset.model); } catch { /* Continue to chat if session storage is disabled. */ } location.href = "./chat.html"; }));
+    modelsGrid.querySelectorAll(".model-use").forEach(btn => btn.addEventListener("click", () => { try { sessionStorage.setItem("ai-school-selected-model", btn.dataset.model); } catch { /* Continue to chat if session storage is disabled. */ } location.href = "./chat.html?model=" + encodeURIComponent(btn.dataset.model); }));
   }
   Promise.all([loadModels(), api("/status").catch(() => null)]).then(([models]) => {
     allModels = models;
