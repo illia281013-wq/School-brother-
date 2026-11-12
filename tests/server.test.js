@@ -143,3 +143,123 @@ test("same-origin requests are allowed without manually configured public URL", 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"), base);
 });
+
+
+async function withMockedProviderFetch(env, handler, run) {
+  const previousFetch = globalThis.fetch;
+  const previousEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    previousEnv[key] = process.env[key];
+    if (value === null) delete process.env[key];
+    else process.env[key] = value;
+  }
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === "string" ? input : input.url);
+    if (url.hostname === "openrouter.ai" || url.hostname === "api.inworld.ai") {
+      return handler(url, init);
+    }
+    return previousFetch(input, init);
+  };
+  try { await run(); }
+  finally {
+    globalThis.fetch = previousFetch;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+test("model lookup sends the server OpenRouter key and returns the requested model", async () => {
+  await withMockedProviderFetch({ OPENROUTER_API_KEY: "test-openrouter-key" }, async (url, init) => {
+    assert.equal(url.pathname, "/api/v1/model/example/new-model");
+    assert.equal(init.headers.Authorization, "Bearer test-openrouter-key");
+    return new Response(JSON.stringify({ data: {
+      id: "example/new-model",
+      name: "New Model",
+      architecture: { input_modalities: ["text"] },
+      pricing: { prompt: "0", completion: "0" }
+    }}), { status: 200, headers: { "Content-Type": "application/json" } });
+  }, async () => {
+    const response = await fetch(base + "/api/models/lookup?id=example%2Fnew-model");
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.model.id, "example/new-model");
+  });
+});
+
+test("OpenRouter check validates the actual server key", async () => {
+  await withMockedProviderFetch({ OPENROUTER_API_KEY: "test-openrouter-key" }, async (url, init) => {
+    assert.equal(url.pathname, "/api/v1/key");
+    assert.equal(init.headers.Authorization, "Bearer test-openrouter-key");
+    return new Response(JSON.stringify({ data: { label: "AI School", limit_remaining: 12.5, is_free_tier: false }}), {
+      status: 200, headers: { "Content-Type": "application/json" }
+    });
+  }, async () => {
+    const response = await fetch(base + "/api/openrouter/check");
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.ok, true);
+    assert.equal(data.limitRemaining, 12.5);
+  });
+});
+
+test("chat sends the selected model and conversation to OpenRouter", async () => {
+  let chatRequest;
+  await withMockedProviderFetch({ OPENROUTER_API_KEY: "test-openrouter-key" }, async (url, init) => {
+    if (url.pathname === "/api/v1/model/example/new-model") {
+      return new Response(JSON.stringify({ data: {
+        id: "example/new-model", name: "New Model",
+        architecture: { input_modalities: ["text"] },
+        pricing: { prompt: "0", completion: "0" }
+      }}), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.pathname === "/api/v1/chat/completions") {
+      assert.equal(init.headers.Authorization, "Bearer test-openrouter-key");
+      chatRequest = JSON.parse(init.body);
+      return new Response(JSON.stringify({ model: "example/new-model", choices: [{ message: { content: "Ответ для теста" } }] }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      });
+    }
+    throw new Error("Unexpected OpenRouter URL: " + url.href);
+  }, async () => {
+    const response = await fetch(base + "/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "example/new-model",
+        grade: "7",
+        messages: [{ role: "user", content: "Сколько будет 2 + 2?" }]
+      })
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).answer, "Ответ для теста");
+    assert.equal(chatRequest.model, "example/new-model");
+    assert.equal(chatRequest.messages.at(-1).content, "Сколько будет 2 + 2?");
+  });
+});
+
+test("Inworld TTS sends Basic credentials only from the server and returns audio", async () => {
+  await withMockedProviderFetch({
+    INWORLD_API_KEY: "test-inworld-base64",
+    INWORLD_TTS_VOICE_ID: "TestVoice"
+  }, async (url, init) => {
+    assert.equal(url.pathname, "/tts/v1/voice");
+    assert.equal(init.headers.Authorization, "Basic test-inworld-base64");
+    const body = JSON.parse(init.body);
+    assert.equal(body.modelId, "inworld-tts-2");
+    assert.equal(body.voiceId, "TestVoice");
+    assert.equal(body.text, "Проверка озвучки");
+    return new Response(JSON.stringify({ audioContent: "SUQzAwAAAAAA", usage: { modelId: "inworld-tts-2" }}), {
+      status: 200, headers: { "Content-Type": "application/json" }
+    });
+  }, async () => {
+    const response = await fetch(base + "/api/tts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "Проверка озвучки" })
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.audioContent, "SUQzAwAAAAAA");
+    assert.equal(data.model, "inworld-tts-2");
+  });
+});
