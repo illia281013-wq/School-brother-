@@ -7,18 +7,20 @@ const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwM
 const webp = "UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAUAmJaQAA3AA/vz0AAA=";
 const jpegSignature = "/9j//9k=";
 
-test("model catalog filters known open model families and labels capabilities", () => {
+test("model catalog accepts arbitrary valid provider IDs and labels capabilities", () => {
   const models = normalizeModels([
     { id: "qwen/qwen-vl", name: "Qwen VL", architecture: { input_modalities: ["text", "image"] }, pricing: { prompt: "0", completion: "0" } },
     { id: "deepseek/deepseek-chat", architecture: { input_modalities: ["text"] }, pricing: { prompt: "0.1", completion: "0.2" } },
-    { id: "vendor/unsupported" },
+    { id: "new-provider/new-school-model:free", name: "New School Model" },
+    { id: "invalid id with spaces" },
     null
   ]);
-  assert.equal(models.length, 2);
+  assert.equal(models.length, 3);
   assert.equal(models[0].vision, true);
   assert.equal(models[0].free, true);
   assert.equal(models[1].vision, false);
   assert.equal(models[1].free, false);
+  assert.equal(models[2].id, "new-provider/new-school-model:free");
 });
 
 test("grade input is restricted to the supported school grades", () => {
@@ -118,4 +120,26 @@ test("approved local development origin can call status endpoint", async () => {
   });
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"), "http://localhost:5173");
+});
+
+
+test("model lookup rejects malformed IDs without contacting OpenRouter", async () => {
+  const response = await fetch(base + "/api/models/lookup?id=" + encodeURIComponent("not a valid model id"));
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /ID модели/);
+});
+
+test("Inworld connectivity test explains missing server key", async () => {
+  if (process.env.INWORLD_API_KEY) return;
+  const response = await fetch(base + "/api/tts/check", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+  });
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /INWORLD_API_KEY/);
+});
+
+test("same-origin requests are allowed without manually configured public URL", async () => {
+  const response = await fetch(base + "/api/status", { headers: { Origin: base } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("access-control-allow-origin"), base);
 });
