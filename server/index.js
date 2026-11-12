@@ -136,6 +136,45 @@ app.get("/api/status", (_req, res) => res.json({
   ttsVoice: process.env.INWORLD_TTS_VOICE_ID || "Ashley"
 }));
 
+app.post("/api/tts/check", ttsLimiter, async (_req, res) => {
+  const apiKey = getInworldKey();
+  if (!apiKey) return res.status(503).json({ ok: false, error: "На сервере не задан INWORLD_API_KEY." });
+  const voiceId = process.env.INWORLD_TTS_VOICE_ID || "Ashley";
+  try {
+    const response = await fetch("https://api.inworld.ai/tts/v1/voice", {
+      method: "POST",
+      headers: { Authorization: "Basic " + apiKey, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(30000),
+      body: JSON.stringify({
+        text: "Проверка подключения Inworld.",
+        voiceId,
+        modelId: "inworld-tts-2",
+        audioConfig: { audioEncoding: "MP3" }
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const providerMessage = payload.error?.message || payload.message || "Inworld не смог выполнить тест.";
+      const error = response.status === 401
+        ? "Inworld отклонил ключ (401). Используй Base64 credentials из Inworld Portal без повторного кодирования."
+        : response.status === 403
+          ? "Доступ запрещён (403). Проверь права рабочего пространства на TTS."
+          : response.status === 404
+            ? "Голос не найден (404). Проверь INWORLD_TTS_VOICE_ID и наличие голоса в своём рабочем пространстве."
+            : response.status === 429
+              ? "Лимит Inworld исчерпан (429). Проверь доступные лимиты."
+              : String(providerMessage).slice(0, 500);
+      return res.status(response.status >= 500 ? 502 : response.status).json({ ok: false, error, providerStatus: response.status });
+    }
+    if (typeof payload.audioContent !== "string" || !payload.audioContent) {
+      return res.status(502).json({ ok: false, error: "Inworld ответил без аудиоданных. Проверь голос и модель." });
+    }
+    return res.json({ ok: true, voiceId, model: payload.usage?.modelId || "inworld-tts-2", message: "Inworld успешно создал тестовое аудио." });
+  } catch (error) {
+    return res.status(502).json({ ok: false, error: error.name === "TimeoutError" ? "Inworld не ответил за 30 секунд." : "Не удалось подключиться к Inworld из backend-сервера." });
+  }
+});
+
 app.post("/api/tts", ttsLimiter, async (req, res) => {
   const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
   if (!text) return res.status(400).json({ error: "Нет текста для озвучивания." });
