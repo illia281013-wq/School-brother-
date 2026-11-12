@@ -271,10 +271,12 @@ async function checkStatus() {
   if (!serverStatus) return;
   serverStatus.textContent = "Проверяю соединение…";
   try {
+    const health = await api("/health");
+    if (!health.ok || !health.frontendBuilt) throw new Error("Backend запущен, но frontend-сборка не найдена. Проверь команду npm run build.");
     const data = await api("/status");
-    serverStatus.textContent = data.server ? "Сервер работает" : "Сервер не отвечает";
+    serverStatus.textContent = data.server ? "Backend и интерфейс доступны" : "Сервер не отвечает";
     $("#provider-status").textContent = (data.aiConfigured ? "Ключ OpenRouter задан. " : "Нет ключа OpenRouter. ") + (data.ttsConfigured ? "Ключ Inworld задан — проверь реальное соединение кнопкой ниже." : "Озвучка Inworld не настроена: добавь INWORLD_API_KEY в серверное окружение.");
-  } catch { serverStatus.textContent = "Сервер недоступен. Запусти npm run dev."; $("#provider-status").textContent = "AI и озвучка недоступны, пока сервер не запущен."; }
+  } catch (error) { serverStatus.textContent = error.message || "Сервер недоступен. Проверь адрес backend."; $("#provider-status").textContent = "AI и озвучка недоступны, пока backend не подключён."; }
 }
 $("#check-server")?.addEventListener("click", checkStatus);\n
 function normalizeApiBase(value) {
