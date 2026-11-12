@@ -6,3 +6,34 @@
 .tts-button{margin-top:10px;align-self:flex-start}
 .tts-audio{display:block;width:min(100%,420px);height:38px;margin-top:10px}
 .tts-error{margin:7px 0 0;overflow-wrap:anywhere}
+
+
+/* Audit pass: keyboard access, consistent controls, responsive navigation. */
+:root { font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+button, input, select, textarea { font: inherit; }
+button, a, summary, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid #91baff !important; outline-offset: 3px; }
+.button:disabled, button:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+.button:disabled:hover, button:disabled:hover { transform: none; }
+.main-nav a[aria-current="page"] { color: #91baff; position: relative; }
+.main-nav a[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -9px; height: 2px; border-radius: 2px; background: var(--cyan); }
+.field-control::placeholder, textarea::placeholder { color: #8494b0; opacity: 1; }
+.field-control:disabled, textarea:disabled, select:disabled { opacity: .65; cursor: not-allowed; }
+.message { overflow-wrap: anywhere; }
+.tts-button { min-height: 38px; }
+.tts-audio { display: block; width: min(100%, 420px); min-height: 38px; margin-top: 10px; }
+.tool-panel, .chat-panel, .model-card, .subject-card { min-width: 0; }
+@media (max-width: 650px) {
+  .topbar { align-items: center; }
+  .main-nav { scrollbar-width: thin; scroll-snap-type: x proximity; }
+  .main-nav a { scroll-snap-align: start; padding: 7px 0; }
+  .top-cta { min-height: 38px; display: inline-flex; align-items: center; }
+  .page-shell { width: min(1120px, 92%); }
+  .chat-toolbar > button { flex: 1 1 100%; }
+  .chat-form .button { width: 100%; min-height: 44px; }
+  .button { min-height: 40px; }
+}
+@media (prefers-contrast: more) {
+  :root { --line: rgba(220, 232, 255, .35); --muted: #bac8df; }
+  .main-nav a, .top-cta, .muted, .privacy-note { color: #cbd8ee; }
+}
