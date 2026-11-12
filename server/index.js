@@ -89,8 +89,8 @@ const ttsLimiter = createRateLimiter({
   message: "Слишком много запросов на озвучку. Подожди немного и попробуй снова."
 });
 
-let cachedModels = { at: 0, data: [] };
-const allowedModelId = /^[a-zA-Z0-9._:\/-]{1,180}$/;
+const modelCache = new Map();
+const allowedModelId = /^[a-zA-Z0-9._:\\/-]{1,180}$/;
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const systemPrompt = "Ты — доброжелательный учебный помощник для школьников 5–11 классов. Объясняй доступно, спокойно и по шагам. Помогай понять ход решения, не выдумывай факты. Если условие неполное, попроси уточнение. Для химии и естественных наук соблюдай правила безопасности. Не проси личные данные.";
 
@@ -98,17 +98,16 @@ export function normalizeGrade(value) {
   const grade = String(value);
   return ["5", "6", "7", "8", "9", "10", "11"].includes(grade) ? grade : "7";
 }
-
 export function normalizeModels(items = []) {
   if (!Array.isArray(items)) return [];
   return items
-    .filter(model => model && typeof model.id === "string" && allowedModelId.test(model.id)
-      && /(qwen|deepseek|llama|gemma|mistral|phi|internvl|glm|hermes|nous|yi-|minicpm)/i.test(model.id))
+    .filter(model => model && typeof model.id === "string" && allowedModelId.test(model.id))
     .map(model => ({
       id: model.id,
       name: typeof model.name === "string" && model.name.trim() ? model.name : model.id,
       vision: Array.isArray(model.architecture?.input_modalities) && model.architecture.input_modalities.includes("image"),
-      free: Number(model.pricing?.prompt ?? 1) === 0 && Number(model.pricing?.completion ?? 1) === 0
+      free: Number(model.pricing?.prompt ?? 1) === 0 && Number(model.pricing?.completion ?? 1) === 0,
+      contextLength: Number.isFinite(Number(model.context_length)) ? Number(model.context_length) : null
     }));
 }
 
@@ -126,17 +125,22 @@ export function parseImageDataUrl(value) {
   return { mime: match[1], data: match[2] };
 }
 
+function getInworldKey() {
+  return String(process.env.INWORLD_API_KEY || "").trim().replace(/^Basic\\s+/i, "").trim();
+}
+
 app.get("/api/status", (_req, res) => res.json({
   server: true,
   aiConfigured: Boolean(process.env.OPENROUTER_API_KEY),
-  ttsConfigured: Boolean(process.env.INWORLD_API_KEY)
+  ttsConfigured: Boolean(getInworldKey()),
+  ttsVoice: process.env.INWORLD_TTS_VOICE_ID || "Ashley"
 }));
 
 app.post("/api/tts", ttsLimiter, async (req, res) => {
   const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
   if (!text) return res.status(400).json({ error: "Нет текста для озвучивания." });
   if (text.length > 2000) return res.status(400).json({ error: "Текст для Inworld TTS не должен превышать 2000 символов." });
-  const apiKey = process.env.INWORLD_API_KEY;
+  const apiKey = getInworldKey();
   if (!apiKey) return res.status(503).json({ error: "Inworld не подключён. Добавь INWORLD_API_KEY в серверный .env." });
 
   try {
@@ -153,8 +157,17 @@ app.post("/api/tts", ttsLimiter, async (req, res) => {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const message = payload.error?.message || payload.message || "Inworld не смог создать аудио.";
-      return res.status(response.status >= 500 ? 502 : response.status).json({ error: message });
+      const providerMessage = payload.error?.message || payload.message || payload.error || "Inworld не смог создать аудио.";
+      const message = response.status === 401
+        ? "Inworld отклонил API-ключ (401). В INWORLD_API_KEY вставь Base64-ключ из Inworld Portal без слова Basic; проверь, что ключ активен."
+        : response.status === 403
+          ? "Inworld запретил запрос (403). Проверь доступ ключа к TTS API и настройки рабочего пространства."
+          : response.status === 404
+            ? "Inworld не нашёл голос или модель (404). Проверь INWORLD_TTS_VOICE_ID и модель inworld-tts-2."
+            : response.status === 429
+              ? "Inworld ограничил запросы (429). Проверь лимиты и баланс рабочего пространства."
+              : String(providerMessage).slice(0, 500);
+      return res.status(response.status >= 500 ? 502 : response.status).json({ error: message, providerStatus: response.status });
     }
     if (typeof payload.audioContent !== "string" || !payload.audioContent || payload.audioContent.length > 20_000_000) {
       return res.status(502).json({ error: "Inworld вернул пустой или слишком большой аудиофайл." });
@@ -190,6 +203,58 @@ app.get("/api/models", async (_req, res) => {
   try {
     const models = await getModels();
     res.json({ models, cached: Date.now() - cachedModels.at >= 5 * 60 * 1000 });
+  } catch (error) {
+    res.status(502).json({ error: error.message || "Каталог моделей недоступен." });
+  }
+});
+
+async function getModels(search = "") {
+  const query = String(search || "").trim().slice(0, 180);
+  const cacheKey = query.toLowerCase();
+  const cached = modelCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < 5 * 60 * 1000) return cached.data;
+
+  const url = new URL("https://openrouter.ai/api/v1/models");
+  if (query) url.searchParams.set("q", query);
+  else url.searchParams.set("sort", "most-popular");
+
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "AI-School-Assistant/1.0" },
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) throw new Error("OpenRouter вернул ошибку каталога моделей (" + response.status + ").");
+    const payload = await response.json();
+    const models = normalizeModels(payload.data);
+    if (!models.length) throw new Error("OpenRouter не вернул подходящих моделей для этого поиска.");
+    const result = query ? models.slice(0, 100) : models.slice(0, 250);
+    modelCache.set(cacheKey, { at: Date.now(), data: result });
+    if (modelCache.size > 30) modelCache.delete(modelCache.keys().next().value);
+    return result;
+  } catch (error) {
+    if (cached?.data?.length) return cached.data;
+    throw error;
+  }
+}
+
+app.get("/api/models/lookup", async (req, res) => {
+  const id = String(req.query.id || "").trim();
+  if (!allowedModelId.test(id)) return res.status(400).json({ error: "Введи корректный ID модели OpenRouter, например provider/model-name." });
+  try {
+    const models = await getModels(id);
+    const model = models.find(item => item.id.toLowerCase() === id.toLowerCase());
+    if (!model) return res.status(404).json({ error: "Модель с таким ID не найдена в каталоге OpenRouter. Проверь написание и доступность." });
+    res.json({ model });
+  } catch (error) {
+    res.status(502).json({ error: error.message || "Не удалось проверить модель в OpenRouter." });
+  }
+});
+
+app.get("/api/models", async (req, res) => {
+  try {
+    const search = String(req.query.q || "").trim();
+    const models = await getModels(search);
+    res.json({ models, count: models.length, search });
   } catch (error) {
     res.status(502).json({ error: error.message || "Каталог моделей недоступен." });
   }
@@ -237,7 +302,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
   ];
 
   try {
-    const selectedModel = (await getModels()).find(item => item.id === model);
+    const selectedModel = (await getModels(model)).find(item => item.id.toLowerCase() === model.toLowerCase());
     if (!selectedModel) return res.status(400).json({ error: "Выбери модель из актуального списка." });
     if (image && !selectedModel.vision) return res.status(400).json({ error: "Эта модель не поддерживает анализ изображений. Выбери vision-модель." });
 
