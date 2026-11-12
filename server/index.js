@@ -222,34 +222,6 @@ app.post("/api/tts", ttsLimiter, async (req, res) => {
   }
 });
 
-async function getModels() {
-  if (cachedModels.at && Date.now() - cachedModels.at < 5 * 60 * 1000) return cachedModels.data;
-  try {
-    const response = await fetch("https://openrouter.ai/api/v1/models", {
-      headers: { "User-Agent": "AI-School-Assistant/1.0" },
-      signal: AbortSignal.timeout(10000)
-    });
-    if (!response.ok) throw new Error("Не удалось получить каталог моделей от OpenRouter.");
-    const payload = await response.json();
-    const models = normalizeModels(payload.data);
-    if (!models.length) throw new Error("Каталог моделей не содержит поддерживаемых моделей.");
-    cachedModels = { at: Date.now(), data: models };
-    return models;
-  } catch (error) {
-    if (cachedModels.data.length) return cachedModels.data;
-    throw error;
-  }
-}
-
-app.get("/api/models", async (_req, res) => {
-  try {
-    const models = await getModels();
-    res.json({ models, cached: Date.now() - cachedModels.at >= 5 * 60 * 1000 });
-  } catch (error) {
-    res.status(502).json({ error: error.message || "Каталог моделей недоступен." });
-  }
-});
-
 async function getModels(search = "") {
   const query = String(search || "").trim().slice(0, 180);
   const cacheKey = query.toLowerCase();
