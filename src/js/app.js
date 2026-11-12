@@ -13,12 +13,18 @@ if (header) header.innerHTML = `<header class="topbar"><a class="brand" href="${
 const footer = document.querySelector("#site-footer");
 if (footer) footer.innerHTML = `<footer class="footer"><a class="brand" href="${navItems[0][1]}"><span class="brand-mark">A<span>+</span></span><span><strong>AI SCHOOL</strong><small>ASSISTANT</small></span></a><p>Учись с пониманием. Шаг за шагом.</p><a href="${pagePrefix}settings.html">Настройки</a></footer>`;
 
-const API = (import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+const API_STORAGE_KEY = "ai-school-api-base-v1";
+function getApiBase() {
+  let saved = "";
+  try { saved = localStorage.getItem(API_STORAGE_KEY) || ""; } catch {}
+  const configured = saved || import.meta.env?.VITE_API_BASE_URL || "/api";
+  return String(configured).replace(/\/$/, "");
+}
 const $ = (selector) => document.querySelector(selector);
 async function api(path, options = {}) {
   let response;
   try {
-    response = await fetch(API + path, { signal: options.signal || AbortSignal.timeout(path === "/chat" ? 70000 : path === "/tts/check" ? 35000 : 20000), ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+    response = await fetch(getApiBase() + path, { signal: options.signal || AbortSignal.timeout(path === "/chat" ? 70000 : path === "/tts/check" ? 35000 : 20000), ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
   } catch (error) {
     if (error?.name === "TimeoutError" || error?.name === "AbortError") throw new Error("Сервер отвечает слишком долго. Проверь подключение и попробуй ещё раз.");
     throw new Error("Не удалось связаться с сервером. Запусти проект командой npm run dev и проверь, что сервер работает.");
@@ -270,7 +276,64 @@ async function checkStatus() {
     $("#provider-status").textContent = (data.aiConfigured ? "Ключ OpenRouter задан. " : "Нет ключа OpenRouter. ") + (data.ttsConfigured ? "Ключ Inworld задан — проверь реальное соединение кнопкой ниже." : "Озвучка Inworld не настроена: добавь INWORLD_API_KEY в серверное окружение.");
   } catch { serverStatus.textContent = "Сервер недоступен. Запусти npm run dev."; $("#provider-status").textContent = "AI и озвучка недоступны, пока сервер не запущен."; }
 }
-$("#check-server")?.addEventListener("click", checkStatus);
+$("#check-server")?.addEventListener("click", checkStatus);\n
+function normalizeApiBase(value) {
+  const raw = String(value || "").trim().replace(/\/$/, "");
+  if (!raw) return "/api";
+  if (raw === "/api" || raw.startsWith("/api/")) return raw;
+  let url;
+  try { url = new URL(raw); } catch { throw new Error("Введи полный адрес сервера, например https://school-brother.onrender.com"); }
+  if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
+    throw new Error("Для удалённого сервера нужен защищённый адрес HTTPS.");
+  }
+  return url.pathname.replace(/\/$/, "").endsWith("/api")
+    ? url.origin + url.pathname.replace(/\/$/, "")
+    : url.origin + url.pathname.replace(/\/$/, "") + "/api";
+}
+const apiBaseInput = $("#api-base-url");
+const apiBaseStatus = $("#api-base-status");
+if (apiBaseInput) {
+  try {
+    const saved = localStorage.getItem(API_STORAGE_KEY);
+    apiBaseInput.value = saved && saved !== "/api" ? saved.replace(/\/api$/, "") : "";
+  } catch {}
+}
+$("#save-api-base")?.addEventListener("click", () => {
+  try {
+    const value = normalizeApiBase(apiBaseInput.value);
+    if (value === "/api") localStorage.removeItem(API_STORAGE_KEY);
+    else localStorage.setItem(API_STORAGE_KEY, value);
+    apiBaseInput.value = value === "/api" ? "" : value.replace(/\/api$/, "");
+    apiBaseStatus.textContent = "Адрес сохранён. Проверяю сервер…";
+    checkStatus();
+  } catch (error) {
+    apiBaseStatus.textContent = error.message;
+  }
+});
+$("#reset-api-base")?.addEventListener("click", () => {
+  try { localStorage.removeItem(API_STORAGE_KEY); } catch {}
+  if (apiBaseInput) apiBaseInput.value = "";
+  apiBaseStatus.textContent = "Используется адрес текущего сайта (/api).";
+  checkStatus();
+});
+$("#check-openrouter")?.addEventListener("click", async () => {
+  const button = $("#check-openrouter");
+  const status = $("#openrouter-status");
+  button.disabled = true;
+  status.textContent = "Проверяю ключ на сервере…";
+  try {
+    const result = await api("/openrouter/check");
+    status.textContent = "OpenRouter подключён" + (result.label ? ": " + result.label : "") +
+      (result.limitRemaining !== null ? ". Остаток лимита: " + result.limitRemaining : "") + ".";
+    status.className = "status-line";
+  } catch (error) {
+    status.textContent = error.message;
+    status.className = "muted small tts-error";
+  } finally {
+    button.disabled = false;
+  }
+});
+
 
 $("#check-inworld")?.addEventListener("click", async () => {
   const button = $("#check-inworld");
