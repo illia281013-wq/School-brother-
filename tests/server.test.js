@@ -77,3 +77,45 @@ test("chat endpoint fails safely when server-side provider key is absent", async
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /OPENROUTER_API_KEY/);
 });
+
+
+test("unknown API routes return a JSON 404 instead of the website HTML", async () => {
+  const response = await fetch(base + "/api/not-a-route");
+  assert.equal(response.status, 404);
+  assert.match(response.headers.get("content-type") || "", /application\/json/);
+  assert.match((await response.json()).error, /маршрута/);
+});
+
+test("TTS endpoint validates empty text before checking credentials", async () => {
+  const response = await fetch(base + "/api/tts", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: "   " })
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /текста/);
+});
+
+test("malformed JSON returns a clear 400 response", async () => {
+  const response = await fetch(base + "/api/tts", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: "{not-json"
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /формат/);
+});
+
+test("unapproved browser origins are rejected by CORS", async () => {
+  const response = await fetch(base + "/api/status", {
+    headers: { Origin: "https://untrusted.example" }
+  });
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /не разрешён/);
+});
+
+test("approved local development origin can call status endpoint", async () => {
+  const response = await fetch(base + "/api/status", {
+    headers: { Origin: "http://localhost:5173" }
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("access-control-allow-origin"), "http://localhost:5173");
+});
