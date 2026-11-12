@@ -37,3 +37,19 @@ button, a, summary, input, select, textarea { -webkit-tap-highlight-color: trans
   :root { --line: rgba(220, 232, 255, .35); --muted: #bac8df; }
   .main-nav a, .top-cta, .muted, .privacy-note { color: #cbd8ee; }
 }
+
+
+/* Model catalog: consistent add/search/action controls */
+.model-add-panel { margin: 16px 0 20px; }
+.model-add-panel h2 { font: 700 16px Manrope; margin: 0 0 8px; }
+.model-add-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center; }
+.model-add-row .field-control { margin: 0; min-width: 0; }
+.model-card-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.model-card-actions .button { min-height: 40px; }
+#custom-model-status, #inworld-status { overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .model-add-row { grid-template-columns: 1fr; }
+  .model-add-row .button { width: 100%; min-height: 44px; }
+  .model-card-actions { display: grid; grid-template-columns: 1fr; }
+  .model-card-actions .button { width: 100%; }
+}
