@@ -12,6 +12,7 @@ const ROOT = path.resolve(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
 
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
 
 function parseOrigins(...values) {
   return new Set(values.flatMap(value => String(value || "").split(","))
@@ -38,8 +39,10 @@ app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   if (req.path.startsWith("/api")) res.setHeader("Cache-Control", "no-store");
   const origin = req.headers.origin;
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || req.protocol).split(",")[0].trim();
+  const sameOrigin = origin && origin === forwardedProtocol + "://" + req.get("host");
   if (origin) {
-    if (!allowedOrigins.has(origin)) {
+    if (!sameOrigin && !allowedOrigins.has(origin)) {
       return res.status(403).json({ error: "Адрес сайта не разрешён. Добавь его в APP_URL или FRONTEND_ORIGINS на сервере." });
     }
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -126,7 +129,7 @@ export function parseImageDataUrl(value) {
 }
 
 function getInworldKey() {
-  return String(process.env.INWORLD_API_KEY || "").trim().replace(/^Basic\\s+/i, "").trim();
+  return String(process.env.INWORLD_API_KEY || "").trim().replace(/^Basic\s+/i, "").trim();
 }
 
 app.get("/api/status", (_req, res) => res.json({
