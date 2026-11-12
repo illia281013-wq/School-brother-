@@ -56,15 +56,16 @@ npm start
 
 Render free service может засыпать при бездействии; первый запрос после паузы может занять больше времени.
 
-## GitHub Pages
+## GitHub Pages + backend
 
-GitHub Pages размещает только статические файлы и **не запускает Express API**. Если использовать Pages, отдельно разверни backend и собери frontend с адресом API:
+GitHub Pages размещает только статические файлы и **не запускает Express API**. GitHub Actions после успешных проверок автоматически собирает frontend в папку `docs/`; Pages берёт сайт оттуда. Для AI-функций всё равно нужен отдельный backend.
 
-```bash
-VITE_API_BASE_URL=https://your-api.example.com/api npm run build
-```
+1. Разверни Node.js web service из `render.yaml` на Render.
+2. В переменные Render добавь `OPENROUTER_API_KEY` и `INWORLD_API_KEY`.
+3. В настройках backend добавь точный origin GitHub Pages в `FRONTEND_ORIGINS` (например, `https://OWNER.github.io`).
+4. Открой сайт Pages → «Настройки» → «Адрес backend-сервера» и сохрани адрес Render без `/api`.
 
-На backend укажи `FRONTEND_ORIGINS` с точным origin сайта Pages. Без отдельного backend не будут работать чат, каталог моделей, анализ фото и Inworld.
+После этого интерфейс Pages обращается к Render по HTTPS. Сохранённый адрес API хранится только в localStorage браузера. Локальный запуск по-прежнему использует `/api` и Vite proxy.
 
 ## Добавление модели
 
