@@ -278,7 +278,8 @@ async function checkStatus() {
     $("#provider-status").textContent = (data.aiConfigured ? "Ключ OpenRouter задан. " : "Нет ключа OpenRouter. ") + (data.ttsConfigured ? "Ключ Inworld задан — проверь реальное соединение кнопкой ниже." : "Озвучка Inworld не настроена: добавь INWORLD_API_KEY в серверное окружение.");
   } catch (error) { serverStatus.textContent = error.message || "Сервер недоступен. Проверь адрес backend."; $("#provider-status").textContent = "AI и озвучка недоступны, пока backend не подключён."; }
 }
-$("#check-server")?.addEventListener("click", checkStatus);\n
+$("#check-server")?.addEventListener("click", checkStatus);
+
 function normalizeApiBase(value) {
   const raw = String(value || "").trim().replace(/\/$/, "");
   if (!raw) return "/api";
