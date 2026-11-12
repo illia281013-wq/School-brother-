@@ -269,7 +269,7 @@ async function getModels(search = "") {
     const payload = await response.json();
     const models = normalizeModels(payload.data);
     if (!models.length) throw new Error("OpenRouter не вернул подходящих моделей для этого поиска.");
-    const result = query ? models.slice(0, 100) : models.slice(0, 250);
+    const result = models.slice(0, 1000);
     modelCache.set(cacheKey, { at: Date.now(), data: result });
     if (modelCache.size > 30) modelCache.delete(modelCache.keys().next().value);
     return result;
@@ -279,12 +279,25 @@ async function getModels(search = "") {
   }
 }
 
+async function getModelById(id) {
+  const parts = id.split("/");
+  if (parts.length !== 2) return null;
+  const url = "https://openrouter.ai/api/v1/model/" + parts.map(encodeURIComponent).join("/");
+  const response = await fetch(url, {
+    headers: { "User-Agent": "AI-School-Assistant/1.0" },
+    signal: AbortSignal.timeout(12000)
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("OpenRouter вернул ошибку проверки модели (" + response.status + ").");
+  const payload = await response.json();
+  return normalizeModels(payload.data ? [payload.data] : [])[0] || null;
+}
+
 app.get("/api/models/lookup", async (req, res) => {
   const id = String(req.query.id || "").trim();
   if (!allowedModelId.test(id)) return res.status(400).json({ error: "Введи корректный ID модели OpenRouter, например provider/model-name." });
   try {
-    const models = await getModels(id);
-    const model = models.find(item => item.id.toLowerCase() === id.toLowerCase());
+    const model = await getModelById(id);
     if (!model) return res.status(404).json({ error: "Модель с таким ID не найдена в каталоге OpenRouter. Проверь написание и доступность." });
     res.json({ model });
   } catch (error) {
@@ -344,7 +357,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
   ];
 
   try {
-    const selectedModel = (await getModels(model)).find(item => item.id.toLowerCase() === model.toLowerCase());
+    const selectedModel = await getModelById(model);
     if (!selectedModel) return res.status(400).json({ error: "Выбери модель из актуального списка." });
     if (image && !selectedModel.vision) return res.status(400).json({ error: "Эта модель не поддерживает анализ изображений. Выбери vision-модель." });
 
