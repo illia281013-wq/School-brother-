@@ -1,5 +1,10 @@
 // Inworld speech controls for assistant answers.
-const TTS_API_BASE = (import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+const TTS_API_STORAGE_KEY = "ai-school-api-base-v1";
+function getTtsApiBase() {
+  let saved = "";
+  try { saved = localStorage.getItem(TTS_API_STORAGE_KEY) || ""; } catch {}
+  return String(saved || import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+}
 
 (() => {
   const messages = document.querySelector("#chat-messages");
@@ -74,7 +79,7 @@ const TTS_API_BASE = (import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$
     button.textContent = "Создаю аудио…";
 
     try {
-      const response = await fetch(TTS_API_BASE + "/tts", {
+      const response = await fetch(getTtsApiBase() + "/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: AbortSignal.timeout(50000),
