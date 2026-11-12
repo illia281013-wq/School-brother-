@@ -32,6 +32,12 @@ async function mockApi(page) {
       if (id === textModel.id) return route.fulfill({ json: { model: textModel } });
       return route.fulfill({ status: 404, json: { error: "Модель не найдена." } });
     }
+    if (path === "/api/health") {
+      return route.fulfill({ json: { ok: true, server: true, frontendBuilt: true } });
+    }
+    if (path === "/api/openrouter/check") {
+      return route.fulfill({ json: { ok: true, label: "Playwright test", limitRemaining: 10, isFreeTier: false } });
+    }
     if (path === "/api/status") {
       return route.fulfill({ json: { server: true, aiConfigured: true, ttsConfigured: true } });
     }
@@ -122,4 +128,21 @@ test("mobile chat layout fits viewport and keeps controls usable", async ({ page
   expect(dimensions.pageWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
   expect(dimensions.sendButtonWidth).toBeGreaterThan(250);
   expect(dimensions.navScrollWidth).toBeGreaterThanOrEqual(dimensions.navClientWidth);
+});
+
+test("settings save an external backend URL for a static Pages frontend", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/pages/settings.html");
+  await page.locator("#api-base-url").fill("https://school-brother.onrender.com");
+  await page.locator("#save-api-base").click();
+  await expect(page.locator("#api-base-status")).toContainText("Адрес сохранён");
+  const saved = await page.evaluate(() => localStorage.getItem("ai-school-api-base-v1"));
+  expect(saved).toBe("https://school-brother.onrender.com/api");
+});
+
+test("settings can verify OpenRouter without exposing its key", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/pages/settings.html");
+  await page.locator("#check-openrouter").click();
+  await expect(page.locator("#openrouter-status")).toContainText("OpenRouter подключён");
 });
