@@ -55,7 +55,7 @@ test("all primary pages load and show navigation", async ({ page }) => {
     ["/pages/chat.html", "Учебный чат"],
     ["/pages/image-analysis.html", "Разбор задания по фото"],
     ["/pages/models.html", "Каталог AI-моделей"],
-    ["/pages/library.html", "Формулы и правила"],
+    ["/pages/library.html", "Библиотека знаний"],
     ["/pages/settings.html", "Настройки проекта"]
   ];
   for (const [path, heading] of paths) {
