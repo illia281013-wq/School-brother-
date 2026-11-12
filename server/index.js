@@ -267,8 +267,10 @@ async function getModels(search = "") {
   else url.searchParams.set("sort", "most-popular");
 
   try {
+    const headers = { "User-Agent": "AI-School-Assistant/1.0" };
+    if (process.env.OPENROUTER_API_KEY) headers.Authorization = "Bearer " + process.env.OPENROUTER_API_KEY;
     const response = await fetch(url, {
-      headers: { "User-Agent": "AI-School-Assistant/1.0" },
+      headers,
       signal: AbortSignal.timeout(15000)
     });
     if (!response.ok) throw new Error("OpenRouter вернул ошибку каталога моделей (" + response.status + ").");
