@@ -262,5 +262,26 @@ async function checkStatus() {
   } catch { serverStatus.textContent = "Сервер недоступен. Запусти npm run dev."; $("#provider-status").textContent = "AI и озвучка недоступны, пока сервер не запущен."; }
 }
 $("#check-server")?.addEventListener("click", checkStatus);
+
+$("#check-inworld")?.addEventListener("click", async () => {
+  const button = $("#check-inworld");
+  const status = $("#inworld-status");
+  button.disabled = true;
+  button.textContent = "Проверяю Inworld…";
+  status.textContent = "Отправляю короткий тестовый запрос в Inworld. Он может расходовать лимит сервиса.";
+  status.className = "muted small";
+  try {
+    const result = await api("/tts/check", { method: "POST", body: "{}" });
+    status.textContent = result.message + " Голос: " + result.voiceId + "; модель: " + result.model + ".";
+    status.className = "status-line";
+  } catch (error) {
+    status.textContent = error.message;
+    status.className = "muted small tts-error";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Проверить реальное подключение";
+  }
+});
+
 if (serverStatus) checkStatus();
 $("#delete-history")?.addEventListener("click", () => { try { localStorage.removeItem(HISTORY_KEY); $("#settings-status").textContent = "История чата на этом устройстве удалена."; } catch { $("#settings-status").textContent = "Браузер запретил доступ к локальному хранилищу."; } });
