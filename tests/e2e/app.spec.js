@@ -51,7 +51,7 @@ async function mockApi(page) {
 test("all primary pages load and show navigation", async ({ page }) => {
   const paths = [
     ["/", "Сложное становится"],
-    ["/pages/subjects.html", "Предметы"],
+    ["/pages/subjects.html", "Школьные предметы"],
     ["/pages/chat.html", "Учебный чат"],
     ["/pages/image-analysis.html", "Разбор задания по фото"],
     ["/pages/models.html", "Каталог AI-моделей"],
@@ -71,8 +71,9 @@ test("user can add a model by exact ID and open it in the chat", async ({ page }
   await page.locator("#custom-model-id").fill(customModel.id);
   await page.locator("#add-model").click();
   await expect(page.locator("#custom-model-status")).toContainText("добавлена");
-  await expect(page.locator(".model-card")).toContainText("New School Model");
-  await page.locator(".model-card").filter({ hasText: "New School Model" }).getByRole("button", { name: "Выбрать для чата" }).click();
+  const newModelCard = page.locator(".model-card").filter({ hasText: "New School Model" });
+  await expect(newModelCard).toContainText("New School Model");
+  await newModelCard.getByRole("button", { name: "Выбрать для чата" }).click();
   await expect(page).toHaveURL(/chat\.html\?model=/);
   await expect(page.locator("#chat-model")).toHaveValue(customModel.id);
 });
