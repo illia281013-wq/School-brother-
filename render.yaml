@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: school-brother
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: INWORLD_API_KEY
+        sync: false
+      - key: INWORLD_TTS_VOICE_ID
+        value: Ashley
