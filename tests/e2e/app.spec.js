@@ -106,3 +106,20 @@ test("settings can run the Inworld connectivity check", async ({ page }) => {
   await page.locator("#check-inworld").click();
   await expect(page.locator("#inworld-status")).toContainText("успешно");
 });
+
+
+test("mobile chat layout fits viewport and keeps controls usable", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/pages/chat.html");
+  const dimensions = await page.evaluate(() => ({
+    pageWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+    sendButtonWidth: document.querySelector("#chat-form button").getBoundingClientRect().width,
+    navClientWidth: document.querySelector(".main-nav").clientWidth,
+    navScrollWidth: document.querySelector(".main-nav").scrollWidth
+  }));
+  expect(dimensions.pageWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+  expect(dimensions.sendButtonWidth).toBeGreaterThan(250);
+  expect(dimensions.navScrollWidth).toBeGreaterThanOrEqual(dimensions.navClientWidth);
+});
