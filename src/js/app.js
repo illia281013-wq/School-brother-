@@ -92,12 +92,21 @@ if (chatForm) {
     sessionStorage.removeItem("ai-school-selected-model");
   } catch { /* Session storage may be disabled in private browsing. */ }
   const queryModel = new URLSearchParams(location.search).get("model");
-  loadModels().then((loaded) => {
-    models = loaded;
-    fillSelect(modelSelect, models, queryModel || preferredChatModel);
+  (async () => {
+    models = await loadModels();
+    const preferred = queryModel || preferredChatModel;
+    if (preferred && !models.some(item => item.id.toLowerCase() === preferred.toLowerCase())) {
+      try {
+        const lookup = await api("/models/lookup?id=" + encodeURIComponent(preferred));
+        if (lookup.model) models.unshift(lookup.model);
+      } catch (error) {
+        status.textContent = "Не удалось загрузить выбранную модель: " + error.message;
+      }
+    }
+    fillSelect(modelSelect, models, preferred);
     if (!models.length) status.textContent = "Не удалось загрузить модели. Проверь сервер в разделе «Настройки».";
     else if (!modelSelect.value) status.textContent = "Выбери модель и напиши вопрос.";
-  });
+  })();
   const params = new URLSearchParams(location.search);
   const subject = params.get("subject");
   if (subject) input.value = `Помоги мне с предметом «${subject}». Объясни тему простым языком.`;
