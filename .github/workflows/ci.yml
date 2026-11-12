@@ -3,6 +3,10 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -16,3 +20,30 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+  publish-static-pages:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build
+      - name: Prepare GitHub Pages static frontend
+        run: |
+          rm -rf docs
+          mkdir -p docs
+          cp -R dist/. docs/
+          touch docs/.nojekyll
+      - name: Commit generated Pages frontend
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          if ! git diff --cached --quiet; then
+            git commit -m "Build static GitHub Pages frontend"
+            git push
+          fi
