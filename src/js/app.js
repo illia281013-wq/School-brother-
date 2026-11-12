@@ -18,8 +18,9 @@ const $ = (selector) => document.querySelector(selector);
 async function api(path, options = {}) {
   let response;
   try {
-    response = await fetch(API + path, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
-  } catch {
+    response = await fetch(API + path, { signal: options.signal || AbortSignal.timeout(path === "/chat" ? 70000 : 20000), ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+  } catch (error) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") throw new Error("Сервер отвечает слишком долго. Проверь подключение и попробуй ещё раз.");
     throw new Error("Не удалось связаться с сервером. Запусти проект командой npm run dev и проверь, что сервер работает.");
   }
   const data = await response.json().catch(() => ({}));
