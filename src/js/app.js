@@ -18,7 +18,7 @@ const $ = (selector) => document.querySelector(selector);
 async function api(path, options = {}) {
   let response;
   try {
-    response = await fetch(API + path, { signal: options.signal || AbortSignal.timeout(path === "/chat" ? 70000 : 20000), ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+    response = await fetch(API + path, { signal: options.signal || AbortSignal.timeout(path === "/chat" ? 70000 : path === "/tts/check" ? 35000 : 20000), ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
   } catch (error) {
     if (error?.name === "TimeoutError" || error?.name === "AbortError") throw new Error("Сервер отвечает слишком долго. Проверь подключение и попробуй ещё раз.");
     throw new Error("Не удалось связаться с сервером. Запусти проект командой npm run dev и проверь, что сервер работает.");
@@ -267,7 +267,7 @@ async function checkStatus() {
   try {
     const data = await api("/status");
     serverStatus.textContent = data.server ? "Сервер работает" : "Сервер не отвечает";
-    $("#provider-status").textContent = (data.aiConfigured ? "AI-модели подключены. " : "Нет ключа OpenRouter. ") + (data.ttsConfigured ? "Озвучка Inworld подключена." : "Озвучка Inworld не настроена: добавь INWORLD_API_KEY в серверный .env.");
+    $("#provider-status").textContent = (data.aiConfigured ? "Ключ OpenRouter задан. " : "Нет ключа OpenRouter. ") + (data.ttsConfigured ? "Ключ Inworld задан — проверь реальное соединение кнопкой ниже." : "Озвучка Inworld не настроена: добавь INWORLD_API_KEY в серверное окружение.");
   } catch { serverStatus.textContent = "Сервер недоступен. Запусти npm run dev."; $("#provider-status").textContent = "AI и озвучка недоступны, пока сервер не запущен."; }
 }
 $("#check-server")?.addEventListener("click", checkStatus);
