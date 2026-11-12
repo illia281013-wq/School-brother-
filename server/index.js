@@ -1,5 +1,6 @@
 import express from "express";
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
@@ -132,12 +133,45 @@ function getInworldKey() {
   return String(process.env.INWORLD_API_KEY || "").trim().replace(/^Basic\s+/i, "").trim();
 }
 
+app.get("/api/health", (_req, res) => {
+  const frontendBuilt = process.env.NODE_ENV !== "production" || existsSync(path.join(DIST, "index.html"));
+  res.status(frontendBuilt ? 200 : 503).json({ ok: frontendBuilt, server: true, frontendBuilt });
+});
+
 app.get("/api/status", (_req, res) => res.json({
   server: true,
   aiConfigured: Boolean(process.env.OPENROUTER_API_KEY),
   ttsConfigured: Boolean(getInworldKey()),
   ttsVoice: process.env.INWORLD_TTS_VOICE_ID || "Ashley"
 }));
+
+app.get("/api/openrouter/check", async (_req, res) => {
+  const apiKey = String(process.env.OPENROUTER_API_KEY || "").trim();
+  if (!apiKey) return res.status(503).json({ ok: false, error: "На сервере не задан OPENROUTER_API_KEY." });
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/key", {
+      headers: { Authorization: "Bearer " + apiKey },
+      signal: AbortSignal.timeout(12000)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = response.status === 401
+        ? "OpenRouter отклонил ключ (401). Создай новый ключ и обнови серверную переменную."
+        : response.status === 429
+          ? "OpenRouter временно ограничил проверку (429)."
+          : "Проверка OpenRouter завершилась ошибкой (" + response.status + ").";
+      return res.status(response.status >= 500 ? 502 : response.status).json({ ok: false, error: message });
+    }
+    return res.json({
+      ok: true,
+      label: typeof payload.data?.label === "string" ? payload.data.label : null,
+      limitRemaining: Number.isFinite(Number(payload.data?.limit_remaining)) ? Number(payload.data.limit_remaining) : null,
+      isFreeTier: Boolean(payload.data?.is_free_tier)
+    });
+  } catch (error) {
+    return res.status(502).json({ ok: false, error: error.name === "TimeoutError" ? "OpenRouter не ответил за 12 секунд." : "Не удалось связаться с OpenRouter." });
+  }
+});
 
 app.post("/api/tts/check", ttsLimiter, async (_req, res) => {
   const apiKey = getInworldKey();
@@ -254,13 +288,34 @@ async function getModels(search = "") {
 async function getModelById(id) {
   const parts = id.split("/");
   if (parts.length !== 2) return null;
+  const apiKey = String(process.env.OPENROUTER_API_KEY || "").trim();
+  if (!apiKey) {
+    const error = new Error("Не задан OPENROUTER_API_KEY на сервере. Без него нельзя проверить модель и отправить задание.");
+    error.status = 503;
+    throw error;
+  }
   const url = "https://openrouter.ai/api/v1/model/" + parts.map(encodeURIComponent).join("/");
   const response = await fetch(url, {
-    headers: { "User-Agent": "AI-School-Assistant/1.0" },
-    signal: AbortSignal.timeout(12000)
+    headers: {
+      Authorization: "Bearer " + apiKey,
+      "User-Agent": "AI-School-Assistant/1.0"
+    },
+    signal: AbortSignal.timeout(15000)
   });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error("OpenRouter вернул ошибку проверки модели (" + response.status + ").");
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = response.status === 401
+      ? "OpenRouter отклонил ключ (401). Проверь OPENROUTER_API_KEY на сервере."
+      : response.status === 403
+        ? "У ключа OpenRouter нет доступа к этой модели (403)."
+        : response.status === 429
+          ? "OpenRouter временно ограничил запросы (429). Попробуй позже."
+          : "OpenRouter не смог проверить модель (" + response.status + ").";
+    const failure = new Error(payload.error?.message || error);
+    failure.status = response.status === 429 ? 429 : response.status >= 500 ? 502 : response.status;
+    throw failure;
+  }
   const payload = await response.json();
   return normalizeModels(payload.data ? [payload.data] : [])[0] || null;
 }
@@ -268,12 +323,13 @@ async function getModelById(id) {
 app.get("/api/models/lookup", async (req, res) => {
   const id = String(req.query.id || "").trim();
   if (!allowedModelId.test(id)) return res.status(400).json({ error: "Введи корректный ID модели OpenRouter, например provider/model-name." });
+  if (!process.env.OPENROUTER_API_KEY) return res.status(503).json({ error: "Добавь OPENROUTER_API_KEY в серверные переменные, чтобы проверять модели." });
   try {
     const model = await getModelById(id);
     if (!model) return res.status(404).json({ error: "Модель с таким ID не найдена в каталоге OpenRouter. Проверь написание и доступность." });
     res.json({ model });
   } catch (error) {
-    res.status(502).json({ error: error.message || "Не удалось проверить модель в OpenRouter." });
+    res.status(error.status || 502).json({ error: error.message || "Не удалось проверить модель в OpenRouter." });
   }
 });
 
@@ -349,15 +405,19 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       const message = data.error?.message || "AI-провайдер не смог обработать запрос. Проверь модель и лимиты.";
       return res.status(response.status >= 500 ? 502 : response.status).json({ error: message });
     }
-    const answer = data.choices?.[0]?.message?.content;
-    res.json({
-      answer: typeof answer === "string" ? answer : JSON.stringify(answer || "Модель вернула пустой ответ."),
-      model: data.model || model
-    });
+    const content = data.choices?.[0]?.message?.content;
+    const answer = typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content.map(part => typeof part === "string" ? part : typeof part?.text === "string" ? part.text : "").filter(Boolean).join("\n")
+        : "";
+    if (!answer.trim()) return res.status(502).json({ error: "Модель вернула пустой ответ. Попробуй другую модель." });
+    res.json({ answer, model: data.model || model });
   } catch (error) {
-    res.status(502).json({ error: error.name === "TimeoutError"
+    const message = error.name === "TimeoutError"
       ? "AI-модель отвечает слишком долго. Попробуй ещё раз."
-      : "Не удалось связаться с AI-провайдером. Проверь подключение и ключ API." });
+      : error.message || "Не удалось связаться с AI-провайдером. Проверь подключение и ключ API.";
+    res.status(error.status || 502).json({ error: message });
   }
 });
 
