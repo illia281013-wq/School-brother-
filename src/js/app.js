@@ -168,23 +168,89 @@ if (fileInput) {
 const modelsGrid = $("#models-grid");
 if (modelsGrid) {
   const search = $("#model-search"), filter = $("#model-filter"), status = $("#models-status");
+  const customInput = $("#custom-model-id"), addButton = $("#add-model"), customStatus = $("#custom-model-status");
+  const CUSTOM_MODELS_KEY = "ai-school-custom-models-v1";
   let allModels = [];
+  let customModels = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(CUSTOM_MODELS_KEY) || "[]");
+    if (Array.isArray(saved)) customModels = saved.filter(m => m && typeof m.id === "string" && typeof m.name === "string");
+  } catch { customModels = []; }
+
+  function saveCustomModels() {
+    try { localStorage.setItem(CUSTOM_MODELS_KEY, JSON.stringify(customModels)); }
+    catch { customStatus.textContent = "Браузер не разрешил сохранить список. Модель будет доступна до закрытия страницы."; }
+  }
+
+  function mergeModels() {
+    const byId = new Map();
+    [...allModels, ...customModels].forEach(model => byId.set(model.id.toLowerCase(), model));
+    return [...byId.values()];
+  }
+
   function drawModels() {
     const q = search.value.toLowerCase().trim(), kind = filter.value;
-    const shown = allModels.filter(m => (kind !== "vision" || m.vision) && (kind !== "free" || m.free) && (m.name + " " + m.id).toLowerCase().includes(q)).slice(0, 100);
-    modelsGrid.innerHTML = shown.map(m => `<article class="model-card"><div class="model-card-top"><span class="model-symbol">✦</span><span class="tag">${m.vision ? "Фото + текст" : "Только текст"}</span></div><h3>${escapeHtml(m.name)}</h3><p class="model-id">${escapeHtml(m.id)}</p><div class="model-tags">${m.vision ? "<span>Поддержка фото</span>" : ""}${m.free ? "<span>Есть бесплатный тариф</span>" : "<span>Стоимость зависит от провайдера</span>"}</div><button class="button ghost model-use" data-model="${escapeHtml(m.id)}" type="button">Выбрать для чата →</button></article>`).join("") || '<p class="muted">По этому запросу моделей нет.</p>';
-    modelsGrid.querySelectorAll(".model-use").forEach(btn => btn.addEventListener("click", () => { try { sessionStorage.setItem("ai-school-selected-model", btn.dataset.model); } catch { /* Continue to chat if session storage is disabled. */ } location.href = "./chat.html?model=" + encodeURIComponent(btn.dataset.model); }));
+    const shown = mergeModels().filter(m =>
+      (kind !== "vision" || m.vision) &&
+      (kind !== "free" || m.free) &&
+      (m.name + " " + m.id).toLowerCase().includes(q)
+    ).slice(0, 100);
+
+    modelsGrid.innerHTML = shown.map(m => {
+      const custom = customModels.some(saved => saved.id.toLowerCase() === m.id.toLowerCase());
+      return `<article class="model-card">
+        <div class="model-card-top"><span class="model-symbol">✦</span><span class="tag">${m.vision ? "Фото + текст" : "Только текст"}</span></div>
+        <h3>${escapeHtml(m.name)}</h3><p class="model-id">${escapeHtml(m.id)}</p>
+        <div class="model-tags">${m.vision ? "<span>Поддержка фото</span>" : ""}${m.free ? "<span>Есть бесплатный тариф</span>" : "<span>Стоимость зависит от провайдера</span>"}${custom ? "<span>Добавлена вручную</span>" : ""}</div>
+        <div class="model-card-actions">
+          <button class="button ghost model-use" data-model="${escapeHtml(m.id)}" type="button">Выбрать для чата →</button>
+          ${custom ? `<button class="button ghost model-remove" data-model="${escapeHtml(m.id)}" type="button" aria-label="Удалить ${escapeHtml(m.name)} из сохранённых моделей">Убрать</button>` : ""}
+        </div>
+      </article>`;
+    }).join("") || '<p class="muted">По этому запросу моделей нет.</p>';
+
+    modelsGrid.querySelectorAll(".model-use").forEach(btn => btn.addEventListener("click", () => {
+      try { sessionStorage.setItem("ai-school-selected-model", btn.dataset.model); } catch {}
+      location.href = "./chat.html?model=" + encodeURIComponent(btn.dataset.model);
+    }));
+    modelsGrid.querySelectorAll(".model-remove").forEach(btn => btn.addEventListener("click", () => {
+      customModels = customModels.filter(m => m.id.toLowerCase() !== btn.dataset.model.toLowerCase());
+      saveCustomModels(); drawModels();
+      customStatus.textContent = "Модель удалена из сохранённого списка.";
+    }));
   }
+
+  async function addCustomModel() {
+    const id = customInput.value.trim();
+    if (!id) { customStatus.textContent = "Введи ID модели."; customInput.focus(); return; }
+    addButton.disabled = true; addButton.textContent = "Проверяю…";
+    customStatus.textContent = "Проверяю ID в каталоге OpenRouter…";
+    try {
+      const data = await api("/models/lookup?id=" + encodeURIComponent(id));
+      if (!data.model?.id) throw new Error("OpenRouter не вернул данные этой модели.");
+      if (!customModels.some(m => m.id.toLowerCase() === data.model.id.toLowerCase())) customModels.push(data.model);
+      saveCustomModels(); customInput.value = "";
+      customStatus.textContent = "Модель проверена и добавлена в этот браузер.";
+      drawModels();
+    } catch (error) {
+      customStatus.textContent = error.message;
+    } finally {
+      addButton.disabled = false; addButton.textContent = "Проверить и добавить";
+    }
+  }
+
+  addButton?.addEventListener("click", addCustomModel);
+  customInput?.addEventListener("keydown", event => { if (event.key === "Enter") addCustomModel(); });
   Promise.all([loadModels(), api("/status").catch(() => null)]).then(([models]) => {
     allModels = models;
     status.textContent = models.length
-      ? `В каталоге ${models.length} моделей. Бесплатный тариф может иметь ограничения.`
+      ? `В каталоге показано ${models.length} моделей. Для модели, которой нет в списке, используй добавление по ID.`
       : "Каталог не загрузился. Проверь запуск сервера и настройки.";
     drawModels();
   });
-  search.addEventListener("input", drawModels); filter.addEventListener("change", drawModels);
+  search.addEventListener("input", drawModels);
+  filter.addEventListener("change", drawModels);
 }
-
 const serverStatus = $("#server-status");
 async function checkStatus() {
   if (!serverStatus) return;
